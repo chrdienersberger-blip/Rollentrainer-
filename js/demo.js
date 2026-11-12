@@ -11,36 +11,40 @@ function circleIntersect(a, ra, b, rb, pick) {
   return pick(p1, p2);
 }
 
+const rad = (d) => (d * Math.PI) / 180;
+
 /**
- * Maße in cm, Ursprung = Tretlager, x nach vorn, y nach oben.
- * Rückgabe: Samples im selben Format wie die Live-Aufnahme (Pixel, y nach unten).
+ * Gelenkpunkte des Fahrermodells in cm (Ursprung = Tretlager, x nach vorn, y nach oben).
+ * th = Kurbelwinkel in rad, 0 = oben, vorwärts im Uhrzeigersinn.
  */
-export function syntheticSession({
-  saddleHeight = 74, torsoDeg = 45, cadence = 88, seconds = 30, fps = 25,
-  thigh = 42, shank = 43, crank = 17.25, noise = 0.15, scale = 6,
+export function riderPose(th, {
+  saddleHeight = 74, torsoDeg = 45, thigh = 42, shank = 43, crank = 17.25, wristOffset = { x: 83, y: 11 },
 } = {}) {
-  const rad = (d) => (d * Math.PI) / 180;
   const hip = { x: -saddleHeight * Math.cos(rad(73)), y: saddleHeight * Math.sin(rad(73)) };
   const shoulder = { x: hip.x + 50 * Math.cos(rad(torsoDeg)), y: hip.y + 50 * Math.sin(rad(torsoDeg)) };
-  const wrist = { x: hip.x + 83, y: hip.y + 11 };
+  const wrist = { x: hip.x + wristOffset.x, y: hip.y + wristOffset.y };
   const elbow = circleIntersect(shoulder, 30, wrist, 27, (p, q) => (p.y < q.y ? p : q));
+  const spindle = { x: crank * Math.sin(th), y: crank * Math.cos(th) };
+  const ankle = { x: spindle.x - 11, y: spindle.y + 8 };
+  const heel = { x: spindle.x - 16, y: spindle.y + 2 };
+  const toe = { x: spindle.x + 7, y: spindle.y - 1 };
+  const knee = circleIntersect(hip, thigh, ankle, shank, (p, q) => (p.x > q.x ? p : q));
+  return { shoulder, elbow, wrist, hip, knee, ankle, heel, toe, spindle };
+}
+
+/** Künstliche Aufnahme im selben Format wie die Live-Aufnahme (Pixel, y nach unten). */
+export function syntheticSession({
+  cadence = 88, seconds = 30, fps = 25, noise = 0.15, scale = 6, ...model
+} = {}) {
   let seed = 7;
   const rnd = () => ((seed = (seed * 16807) % 2147483647) / 2147483647 - 0.5) * 2 * noise;
   const px = (p, v = 1) => ({ x: (p.x + 60 + rnd()) * scale, y: (130 - p.y + rnd()) * scale, v });
-
   const samples = [];
   for (let i = 0; i < seconds * fps; i++) {
     const t = (i * 1000) / fps;
-    const th = (2 * Math.PI * cadence * t) / 60000; // 0 = Kurbel oben, vorwärts im Uhrzeigersinn
-    const spindle = { x: crank * Math.sin(th), y: crank * Math.cos(th) };
-    const ankle = { x: spindle.x - 11, y: spindle.y + 8 };
-    const heel = { x: spindle.x - 16, y: spindle.y + 2 };
-    const toe = { x: spindle.x + 7, y: spindle.y - 1 };
-    const knee = circleIntersect(hip, thigh, ankle, shank, (p, q) => (p.x > q.x ? p : q));
-    const pts = (v) => ({
-      shoulder: px(shoulder, v), elbow: px(elbow, v), wrist: px(wrist, v), hip: px(hip, v),
-      knee: px(knee, v), ankle: px(ankle, v), heel: px(heel, v), toe: px(toe, v),
-    });
+    const pose = riderPose((2 * Math.PI * cadence * t) / 60000, model);
+    const pts = (v) => Object.fromEntries(
+      ['shoulder', 'elbow', 'wrist', 'hip', 'knee', 'ankle', 'heel', 'toe'].map((k) => [k, px(pose[k], v)]));
     samples.push({ t, right: pts(0.95), left: pts(0.3), span: 3 * scale });
   }
   return samples;

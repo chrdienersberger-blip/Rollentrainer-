@@ -1,7 +1,8 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { angleAt, analyzeSession } from '../js/analysis.js';
-import { evaluate } from '../js/evaluate.js';
+import { evaluate, saddleFromInseam } from '../js/evaluate.js';
+import { findBike, BRANDS, CATEGORIES } from '../js/bikes.js';
 import { syntheticSession } from '../js/demo.js';
 
 // Erwartete maximale Kniestreckung des Gelenkmodells direkt aus der Geometrie
@@ -33,20 +34,20 @@ test('erkennt Seite, Trittfrequenz und Winkel', () => {
 
 test('niedriger Sattel → Empfehlung höher, hoher Sattel → tiefer', () => {
   const low = analyzeSession(syntheticSession({ saddleHeight: 70 }));
-  const lowItem = evaluate(low, 'sport').find((i) => i.key === 'kneeExt');
+  const lowItem = evaluate(low, 'sport').items.find((i) => i.key === 'kneeExt');
   assert.notEqual(lowItem.status, 'ok');
   assert.match(lowItem.tip, /höher/);
 
   const high = analyzeSession(syntheticSession({ saddleHeight: 82 }));
-  const highItem = evaluate(high, 'sport').find((i) => i.key === 'kneeExt');
+  const highItem = evaluate(high, 'sport').items.find((i) => i.key === 'kneeExt');
   assert.notEqual(highItem.status, 'ok');
   assert.match(highItem.tip, /tiefer/);
 });
 
 test('Fahrstil ändert die Bewertung des Oberkörpers', () => {
   const r = analyzeSession(syntheticSession({ torsoDeg: 55 }));
-  assert.equal(evaluate(r, 'komfort').find((i) => i.key === 'torso').status, 'ok');
-  assert.equal(evaluate(r, 'rennen').find((i) => i.key === 'torso').status, 'bad');
+  assert.equal(evaluate(r, 'komfort').items.find((i) => i.key === 'torso').status, 'ok');
+  assert.equal(evaluate(r, 'rennen').items.find((i) => i.key === 'torso').status, 'bad');
 });
 
 test('ohne Tretbewegung gibt es eine verständliche Fehlermeldung', () => {
@@ -54,4 +55,33 @@ test('ohne Tretbewegung gibt es eine verständliche Fehlermeldung', () => {
   const r = analyzeSession(s);
   assert.equal(r.ok, false);
   assert.match(r.reason, /Tretbewegung/);
+});
+
+test('Punktzahl sinkt mit schlechterer Position, wichtigste Anpassung wird benannt', () => {
+  const good = evaluate(analyzeSession(syntheticSession({ saddleHeight: 74.5 })), 'sport');
+  const bad = evaluate(analyzeSession(syntheticSession({ saddleHeight: 68 })), 'sport');
+  assert.ok(good.score > bad.score, `${good.score} vs ${bad.score}`);
+  assert.equal(bad.top.key, 'kneeExt');
+  assert.match(bad.top.action, /höher/);
+});
+
+test('Fahrradauswahl: Kategorie, integriertes Cockpit, Fallback', () => {
+  for (const list of Object.values(BRANDS)) for (const x of list) assert.ok(CATEGORIES[x.cat], x.model);
+  const aeroad = findBike('Canyon|Aeroad');
+  assert.equal(aeroad.name, 'Canyon Aeroad');
+  assert.equal(CATEGORIES[aeroad.cat].style, 'rennen');
+  assert.equal(findBike('other|gravel').cat, 'gravel');
+  assert.equal(findBike('gibt|esnicht').cat, 'allround');
+  const r = analyzeSession(syntheticSession({ torsoDeg: 20 }));
+  const tip = evaluate(r, 'rennen', aeroad).items.find((i) => i.key === 'torso').tip;
+  assert.match(tip, /Canyon Aeroad/);
+});
+
+test('Kniekurve beginnt am oberen Totpunkt, Sattelhöhe aus Schrittlänge', () => {
+  const r = analyzeSession(syntheticSession());
+  assert.equal(r.kneeCurve.length, 24);
+  assert.equal(Math.min(...r.kneeCurve), r.kneeCurve[0]);
+  assert.ok(r.extras.hipBob < 1);
+  assert.equal(saddleFromInseam(85), 75.1);
+  assert.equal(saddleFromInseam(0), null);
 });

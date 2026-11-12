@@ -1,10 +1,10 @@
 {
-  "name": "Sitzposition prüfen – Rollentrainer",
-  "short_name": "Sitzposition",
+  "name": "Sitzcheck – Sitzposition auf dem Rollentrainer",
+  "short_name": "Sitzcheck",
   "lang": "de",
   "start_url": ".",
   "display": "standalone",
   "orientation": "any",
-  "background_color": "#10151c",
-  "theme_color": "#10151c"
+  "background_color": "#0a0e13",
+  "theme_color": "#0a0e13"
 }

@@ -3,55 +3,75 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-  <meta name="theme-color" content="#10151c">
+  <meta name="theme-color" content="#0a0e13">
   <meta name="apple-mobile-web-app-capable" content="yes">
-  <title>Sitzposition prüfen – Rollentrainer</title>
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <title>Sitzcheck – Sitzposition auf dem Rollentrainer</title>
   <link rel="manifest" href="manifest.webmanifest">
   <link rel="stylesheet" href="style.css">
 </head>
 <body>
   <!-- Einrichtung -->
   <main id="setup" class="view">
-    <h1>Sitzposition prüfen</h1>
-    <p class="lead">Stell dein Handy seitlich neben den Rollentrainer. Die App misst deine Gelenkwinkel beim Treten und sagt dir, was du an Sattel und Lenker ändern kannst.</p>
+    <header class="brand">
+      <span class="logo" aria-hidden="true"></span>
+      <span class="brandname">Sitzcheck</span>
+      <span class="brandtag">Bikefitting per Kamera</span>
+    </header>
+
+    <section class="hero">
+      <svg id="heroSvg" viewBox="-88 -128 196 160" role="img" aria-label="Animierte Seitenansicht eines Radfahrers mit eingezeichneten Gelenkwinkeln"></svg>
+      <div class="herotext">
+        <h1>Sitzt du richtig<br>auf deinem Rad?</h1>
+        <p>Handy seitlich aufstellen, 45 Sekunden treten – die App misst deine Gelenkwinkel und sagt dir, was du an Sattel und Cockpit ändern kannst.</p>
+      </div>
+    </section>
 
     <section class="card">
-      <h2>So stellst du das Handy auf</h2>
+      <div class="step"><span>1</span><h2>Dein Rad</h2></div>
+      <select id="bike" aria-label="Fahrrad auswählen"></select>
+      <div id="bikeChips" class="chips"></div>
+    </section>
+
+    <section class="card">
+      <div class="step"><span>2</span><h2>Dein Ziel</h2></div>
+      <div id="styleSeg" class="seg seg4" role="group" aria-label="Sitzposition"></div>
+      <p id="styleHint" class="hint"></p>
+    </section>
+
+    <section class="card">
+      <div class="step"><span>3</span><h2>Deine Maße</h2></div>
+      <div class="grid2">
+        <label>Körpergröße
+          <span class="field"><input id="height" type="number" inputmode="numeric" min="130" max="220" value="175"><i>cm</i></span>
+        </label>
+        <label>Schrittlänge <small>optional</small>
+          <span class="field"><input id="inseam" type="number" inputmode="decimal" min="55" max="110" placeholder="–"><i>cm</i></span>
+        </label>
+      </div>
+      <label class="lbl">Messdauer</label>
+      <div id="durSeg" class="seg" role="group" aria-label="Messdauer"></div>
+    </section>
+
+    <details class="card">
+      <summary>Handy richtig aufstellen</summary>
       <ul class="steps">
         <li>Genau seitlich im 90°-Winkel zum Rad, etwa auf Hüfthöhe, 2–3 m entfernt.</li>
         <li>Querformat, Handy gerade (nicht gekippt).</li>
         <li>Du bist von Kopf bis Fuß im Bild, auch am unteren Pedal.</li>
         <li>Gutes Licht, eng anliegende Kleidung, ruhiger Hintergrund.</li>
-        <li>Hände in deiner üblichen Griffposition (z. B. an den Bremsgriffen).</li>
+        <li>Hände in deiner üblichen Griffposition.</li>
       </ul>
-    </section>
+    </details>
 
-    <section class="card form">
-      <label>Fahrstil
-        <select id="style">
-          <option value="komfort">Komfort / Ausdauer</option>
-          <option value="sport" selected>Sportlich</option>
-          <option value="rennen">Rennen / Aero</option>
-        </select>
+    <p id="setupError" class="alert" hidden></p>
+    <button id="startBtn" class="primary">Messung starten</button>
+    <div class="row">
+      <label class="secondary filebtn">Video hochladen
+        <input id="fileInput" type="file" accept="video/*" hidden>
       </label>
-      <label>Körpergröße (cm)
-        <input id="height" type="number" inputmode="numeric" min="130" max="220" value="175">
-      </label>
-      <label>Messdauer
-        <select id="duration">
-          <option value="30">30 Sekunden</option>
-          <option value="45" selected>45 Sekunden</option>
-          <option value="60">60 Sekunden</option>
-        </select>
-      </label>
-    </section>
-
-    <p id="setupError" class="error" hidden></p>
-    <button id="startBtn" class="primary">Kamera starten</button>
-    <label class="secondary filebtn">Video hochladen
-      <input id="fileInput" type="file" accept="video/*" hidden>
-    </label>
-    <button id="demoBtn" class="link">Beispiel-Auswertung ansehen</button>
+      <button id="demoBtn" class="secondary">Beispiel ansehen</button>
+    </div>
 
     <section id="history" class="card" hidden>
       <h2>Letzte Messungen</h2>
@@ -82,14 +102,12 @@
 
   <!-- Ergebnis -->
   <main id="results" class="view" hidden>
-    <h1>Deine Auswertung</h1>
-    <p id="summary" class="lead"></p>
-    <div id="warnings"></div>
-    <figure id="snapshotFig" hidden>
-      <img id="snapshot" alt="Moment der größten Kniestreckung mit eingezeichneten Gelenken">
-      <figcaption>Moment der größten Kniestreckung</figcaption>
-    </figure>
-    <div id="items"></div>
+    <header class="brand">
+      <span class="logo" aria-hidden="true"></span>
+      <span class="brandname">Sitzcheck</span>
+      <span id="resMeta" class="brandtag"></span>
+    </header>
+    <div id="resBody"></div>
     <p class="note">Ändere immer nur eine Einstellung auf einmal, in kleinen Schritten, und miss danach neu. Bei Schmerzen oder Beschwerden zählt dein Körpergefühl mehr als jeder Richtwert – dann lohnt sich ein professionelles Bikefitting.</p>
     <button id="againBtn" class="primary">Neue Messung</button>
   </main>

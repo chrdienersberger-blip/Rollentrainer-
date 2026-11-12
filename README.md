@@ -25,7 +25,8 @@ Danach ist die App unter `https://<benutzer>.github.io/<repo>/` erreichbar.
 | `index.html`, `style.css` | Oberfläche |
 | `js/app.js` | Kamera, Pose-Erkennung, Ablauf, Anzeige |
 | `js/analysis.js` | Winkelberechnung, Erkennung der Tretzyklen |
-| `js/evaluate.js` | Zielbereiche je Fahrstil und Empfehlungstexte |
+| `js/evaluate.js` | Zielbereiche je Sitzziel, Punktzahl und Empfehlungstexte |
+| `js/bikes.js` | Fahrradauswahl (Marke/Modell → Kategorie) |
 | `js/demo.js` | Künstliche Aufnahme für Demo und Tests |
 
 ## Tests

@@ -145,10 +145,21 @@ export function analyzeSession(samples, { heightCm = 175 } = {}) {
   }
 
   const pxPerCm = shankPx / (0.246 * heightCm); // Unterschenkel ≈ 24,6 % der Körpergröße
-  const perCycle = { kneeExt: [], kneeFlex: [], hipMin: [], kops: [] };
-  for (const { i0, i1 } of cycles) {
+  const perCycle = { kneeExt: [], kneeFlex: [], hipMin: [], kops: [], hipBob: [] };
+  const hipY = smooth(frames.map((f) => f.p.hip.y));
+  const BINS = 24;
+  const binSum = new Array(BINS).fill(0), binN = new Array(BINS).fill(0);
+  for (const { i0, i1, period } of cycles) {
     let iMax = i0, iMin = i0, iHip = i0, fwd = -Infinity, iFwd = i0;
+    let hyLo = Infinity, hyHi = -Infinity;
+    for (let b = 0, i = i0; b < BINS; b++) { // Kurve auf feste Stützstellen interpolieren
+      const tt = frames[i0].t + ((b + 0.5) / BINS) * period;
+      while (i + 1 < i1 && frames[i + 1].t <= tt) i++;
+      const f = Math.min(1, Math.max(0, (tt - frames[i].t) / (frames[i + 1].t - frames[i].t || 1)));
+      binSum[b] += knee[i] + f * (knee[i + 1] - knee[i]); binN[b]++;
+    }
     for (let i = i0; i < i1; i++) {
+      hyLo = Math.min(hyLo, hipY[i]); hyHi = Math.max(hyHi, hipY[i]);
       if (knee[i] > knee[iMax]) iMax = i;
       if (knee[i] < knee[iMin]) iMin = i;
       if (hip[i] < hip[iHip]) iHip = i;
@@ -158,6 +169,7 @@ export function analyzeSession(samples, { heightCm = 175 } = {}) {
     perCycle.kneeExt.push(peak(knee, iMax));
     perCycle.kneeFlex.push(peak(knee, iMin));
     perCycle.hipMin.push(peak(hip, iHip));
+    perCycle.hipBob.push((hyHi - hyLo) / pxPerCm);
     // Knielot bei waagerechter Kurbel (Fuß am weitesten vorn)
     const p = frames[iFwd].p;
     if (p.heel.v >= 0.3 && p.toe.v >= 0.3) {
@@ -166,6 +178,14 @@ export function analyzeSession(samples, { heightCm = 175 } = {}) {
       perCycle.kops.push((dir * (kneeFrontX - spindleX)) / pxPerCm);
     }
   }
+
+  // Mittlere Kniewinkel-Kurve über eine Kurbelumdrehung, beginnend am oberen Totpunkt
+  let curve = binSum.map((v, i) => (binN[i] ? v / binN[i] : null));
+  curve = curve.map((v, i) => v ?? curve[(i + BINS - 1) % BINS] ?? curve[(i + 1) % BINS] ?? 0);
+  const iTop = curve.indexOf(Math.min(...curve));
+  curve = curve.map((_, i) => Math.round(curve[(i + iTop) % BINS] * 10) / 10);
+  const extMed = median(perCycle.kneeExt);
+  const extSpread = Math.sqrt(median(perCycle.kneeExt.map((v) => (v - extMed) ** 2)));
 
   const armOk = frames.map((f) => Math.min(f.p.elbow.v, f.p.wrist.v) >= 0.5);
   const armVals = (key) => ang.filter((_, i) => armOk[i]).map((a) => a[key]);
@@ -188,6 +208,11 @@ export function analyzeSession(samples, { heightCm = 175 } = {}) {
     cadence: Math.round(60000 / medPeriod),
     warnings,
     geometry: { thighPx, shankPx, pxPerCm },
+    kneeCurve: curve,
+    extras: {
+      hipBob: r1(median(perCycle.hipBob)),   // Auf-/Abbewegung der Hüfte je Umdrehung (cm)
+      extSpread: r1(extSpread),              // Streuung der Kniestreckung zwischen den Umdrehungen (°)
+    },
     metrics: {
       kneeExt: r1(median(perCycle.kneeExt)),
       kneeFlex: r1(median(perCycle.kneeFlex)),

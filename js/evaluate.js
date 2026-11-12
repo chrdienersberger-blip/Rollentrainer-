@@ -2,19 +2,23 @@
 // dynamische Messung aus der Seitenansicht – kein Ersatz für ein Bikefitting.
 
 export const STYLES = {
-  komfort: { label: 'Komfort / Ausdauer', torso: [45, 60], shoulder: [70, 90], elbow: [145, 170], hipMin: 43 },
-  sport: { label: 'Sportlich', torso: [38, 50], shoulder: [80, 95], elbow: [145, 170], hipMin: 36 },
-  rennen: { label: 'Rennen / Aero', torso: [28, 42], shoulder: [85, 100], elbow: [135, 165], hipMin: 28 },
+  komfort: { label: 'Komfort', sub: 'Ausdauer, lange Touren', torso: [45, 60], shoulder: [70, 90], elbow: [145, 170], hipMin: 43 },
+  sport: { label: 'Sportlich', sub: 'Training, zügige Runden', torso: [38, 50], shoulder: [80, 95], elbow: [145, 170], hipMin: 36 },
+  rennen: { label: 'Rennen', sub: 'Tief und aerodynamisch', torso: [28, 42], shoulder: [85, 100], elbow: [135, 165], hipMin: 28 },
+  tt: { label: 'Zeitfahren', sub: 'Auf den Armauflagen', torso: [12, 25], shoulder: [75, 95], elbow: [85, 110], hipMin: 28 },
 };
 
 const KNEE_EXT = [140, 150];
 const KNEE_FLEX = [65, 80];
 const KOPS = [-3, 3];
 
-function status(v, [lo, hi], tol) {
-  if (v >= lo && v <= hi) return 'ok';
-  if (v >= lo - tol && v <= hi + tol) return 'warn';
-  return 'bad';
+/** Bewertung eines Werts: Status plus Punktzahl (100 = im Zielbereich). */
+function rate(v, lo, hi, tol) {
+  const d = v < lo ? lo - v : hi != null && v > hi ? v - hi : 0;
+  return {
+    status: d === 0 ? 'ok' : d <= tol ? 'warn' : 'bad',
+    score: Math.round(100 - Math.min(1, d / (2 * tol)) * 80),
+  };
 }
 
 /** Nötige Sattelhöhen-Änderung (mm, auf 5 mm gerundet), um den Ziel-Kniewinkel zu erreichen. */
@@ -25,116 +29,165 @@ function saddleDeltaMm(kneeDeg, targetDeg, { thighPx, shankPx, pxPerCm }) {
   return Math.min(30, Math.max(5, Math.round(mm / 5) * 5));
 }
 
-export function evaluate(result, styleKey) {
-  const st = STYLES[styleKey] ?? STYLES.sport;
+/** Formulierungen für Cockpit-Änderungen, passend zum Rad. */
+function cockpitWords(style, bike) {
+  if (style === 'tt') {
+    return {
+      higher: 'Armauflagen höher setzen (Spacer unter die Pads)',
+      lower: 'Armauflagen tiefer setzen (Spacer entfernen)',
+      shorter: 'Armauflagen und Extensions näher zu dir holen',
+      longer: 'Extensions weiter ausziehen oder die Armauflagen nach vorn versetzen',
+    };
+  }
+  if (bike?.integrated) {
+    const n = bike.name;
+    return {
+      higher: `Cockpit höher setzen (Spacer unter die Lenkereinheit des ${n})`,
+      lower: `Cockpit tiefer setzen (Spacer am ${n} entfernen)`,
+      shorter: `eine kürzere Cockpit-Einheit wählen – beim integrierten Cockpit des ${n} lässt sich der Vorbau je nach Ausstattung nicht einzeln tauschen`,
+      longer: `eine längere Cockpit-Einheit wählen – beim integrierten Cockpit des ${n} lässt sich der Vorbau je nach Ausstattung nicht einzeln tauschen`,
+    };
+  }
+  return {
+    higher: 'Lenker höher setzen (Spacer unter den Vorbau) oder einen steileren Vorbau montieren',
+    lower: 'Lenker tiefer setzen (Spacer über den Vorbau)',
+    shorter: 'einen kürzeren Vorbau probieren',
+    longer: 'einen längeren Vorbau probieren',
+  };
+}
+
+export function evaluate(result, styleKey, bike = null) {
+  const key = STYLES[styleKey] ? styleKey : 'sport';
+  const st = STYLES[key];
+  const w = cockpitWords(key, bike);
   const m = result.metrics;
   const items = [];
+  const add = (it, lo, hi, tol, weight) =>
+    items.push({ ...it, lo, hi, tol, weight, ...rate(it.value, lo, hi, tol) });
+  const steps = (mm) => (mm > 5 ? ' – in Schritten von höchstens 5 mm, dazwischen neu messen.' : '.');
 
   // --- Sattelhöhe: Kniestreckung unten ---
   {
-    const s = status(m.kneeExt, KNEE_EXT, 4);
-    let tip = 'Die Sattelhöhe passt.';
+    let tip = 'Die Sattelhöhe passt.', action = null;
     if (m.kneeExt < KNEE_EXT[0]) {
       const mm = saddleDeltaMm(m.kneeExt, KNEE_EXT[0] + 3, result.geometry);
-      tip = `Das Bein wird unten zu wenig gestreckt – der Sattel ist vermutlich zu niedrig. Sattel um etwa ${mm} mm höher stellen` +
-        (mm > 5 ? ' (in Schritten von höchstens 5 mm, dazwischen neu messen).' : '.');
+      action = `Sattel ca. ${mm} mm höher`;
+      tip = `Das Bein wird unten zu wenig gestreckt – der Sattel ist vermutlich zu niedrig. Sattel um etwa ${mm} mm höher stellen${steps(mm)}`;
     } else if (m.kneeExt > KNEE_EXT[1]) {
       const mm = saddleDeltaMm(m.kneeExt, KNEE_EXT[1] - 3, result.geometry);
-      tip = `Das Bein wird unten sehr weit gestreckt – der Sattel ist vermutlich zu hoch (oft kippt dann auch das Becken hin und her). Sattel um etwa ${mm} mm tiefer stellen` +
-        (mm > 5 ? ' (in Schritten von höchstens 5 mm, dazwischen neu messen).' : '.');
+      action = `Sattel ca. ${mm} mm tiefer`;
+      tip = `Das Bein wird unten sehr weit gestreckt – der Sattel ist vermutlich zu hoch. Sattel um etwa ${mm} mm tiefer stellen${steps(mm)}`;
     }
-    items.push({
-      key: 'kneeExt', label: 'Kniewinkel unten (Streckung)', group: 'Sattelhöhe',
-      value: m.kneeExt, unit: '°', range: `${KNEE_EXT[0]}–${KNEE_EXT[1]}°`, status: s, tip,
-    });
+    add({ key: 'kneeExt', label: 'Kniewinkel unten', sub: 'Streckung am unteren Totpunkt', group: 'Sattelhöhe', value: m.kneeExt, unit: '°', tip, action },
+      KNEE_EXT[0], KNEE_EXT[1], 4, 3);
   }
 
   // --- Kniebeugung oben ---
   {
-    const s = status(m.kneeFlex, KNEE_FLEX, 4);
-    let tip = 'Die Kniebeugung am oberen Totpunkt ist unauffällig.';
+    let tip = 'Die Kniebeugung am oberen Totpunkt ist unauffällig.', action = null;
     if (m.kneeFlex < KNEE_FLEX[0]) {
+      action = 'Kniebeugung oben entlasten';
       tip = 'Das Knie wird oben sehr stark gebeugt. Das belastet das Knie – häufige Ursachen: Sattel zu niedrig oder Kurbel zu lang.';
     } else if (m.kneeFlex > KNEE_FLEX[1]) {
+      action = 'Sattelhöhe gegenprüfen';
       tip = 'Das Knie wird oben nur wenig gebeugt. Für sich allein unkritisch; zusammen mit einer sehr großen Streckung unten spricht es für einen zu hohen Sattel.';
     }
-    items.push({
-      key: 'kneeFlex', label: 'Kniewinkel oben (Beugung)', group: 'Sattelhöhe',
-      value: m.kneeFlex, unit: '°', range: `${KNEE_FLEX[0]}–${KNEE_FLEX[1]}°`, status: s, tip,
-    });
+    add({ key: 'kneeFlex', label: 'Kniewinkel oben', sub: 'Beugung am oberen Totpunkt', group: 'Sattelhöhe', value: m.kneeFlex, unit: '°', tip, action },
+      KNEE_FLEX[0], KNEE_FLEX[1], 4, 1);
   }
 
   // --- Knielot ---
   if (m.kops != null) {
-    const s = status(m.kops, KOPS, 1.5);
-    let tip = 'Das Knie steht bei waagerechter Kurbel etwa über der Pedalachse.';
+    let tip = 'Das Knie steht bei waagerechter Kurbel etwa über der Pedalachse.', action = null;
     if (m.kops > KOPS[1]) {
-      tip = 'Das Knie steht bei waagerechter Kurbel deutlich vor der Pedalachse. Sattel in kleinen Schritten (ca. 5 mm) nach hinten schieben – danach die Sattelhöhe erneut prüfen.';
+      action = 'Sattel etwas nach hinten';
+      tip = 'Das Knie steht bei waagerechter Kurbel deutlich vor der Pedalachse. Sattel in Schritten von ca. 5 mm nach hinten schieben, danach die Sattelhöhe erneut prüfen.';
     } else if (m.kops < KOPS[0]) {
-      tip = 'Das Knie steht bei waagerechter Kurbel deutlich hinter der Pedalachse. Sattel in kleinen Schritten (ca. 5 mm) nach vorn schieben – danach die Sattelhöhe erneut prüfen.';
+      action = 'Sattel etwas nach vorn';
+      tip = 'Das Knie steht bei waagerechter Kurbel deutlich hinter der Pedalachse. Sattel in Schritten von ca. 5 mm nach vorn schieben, danach die Sattelhöhe erneut prüfen.';
     }
-    const sign = m.kops > 0 ? '+' : '';
-    items.push({
-      key: 'kops', label: 'Knielot (Knie zu Pedalachse)', group: 'Sattel vor/zurück',
-      value: `${sign}${m.kops}`, unit: ' cm', range: `${KOPS[0]} bis +${KOPS[1]} cm`, status: s,
-      tip: tip + ' Dieser Wert ist per Kamera nur grob bestimmbar.',
-    });
+    if (key === 'tt') tip += ' Am Zeitfahrrad sitzt man bewusst weiter vorn – ein Knie vor der Pedalachse ist dort normal.';
+    add({ key: 'kops', label: 'Knielot', sub: 'Knie zur Pedalachse bei waagerechter Kurbel', group: 'Sattel vor / zurück', value: m.kops, unit: ' cm', signed: true, tip: tip + ' Dieser Wert ist per Kamera nur grob bestimmbar.', action },
+      KOPS[0], KOPS[1], 1.5, key === 'tt' ? 0.3 : 1);
   }
 
   // --- Oberkörper ---
   {
-    const s = status(m.torso, st.torso, 5);
-    let tip = `Die Oberkörperneigung passt zum Fahrstil „${st.label}“.`;
+    let tip = `Die Oberkörperneigung passt zum Ziel „${st.label}“.`, action = null;
     if (m.torso < st.torso[0]) {
-      tip = `Du sitzt für „${st.label}“ sehr flach. Wenn Nacken, Rücken oder Hände ermüden: Lenker höher (Spacer unter den Vorbau) oder kürzeren Vorbau wählen.`;
+      action = 'Cockpit höher';
+      tip = `Du sitzt für „${st.label}“ sehr flach. Wenn Nacken, Rücken oder Hände ermüden: ${w.higher}.`;
     } else if (m.torso > st.torso[1]) {
-      tip = `Du sitzt für „${st.label}“ recht aufrecht. Wenn du sportlicher sitzen möchtest: Lenker tiefer (Spacer über den Vorbau) oder längeren Vorbau wählen.`;
+      action = 'Cockpit tiefer';
+      tip = `Du sitzt für „${st.label}“ recht aufrecht. Wenn du flacher sitzen möchtest: ${w.lower}.`;
     }
-    items.push({
-      key: 'torso', label: 'Oberkörperwinkel zur Waagerechten', group: 'Lenkerhöhe',
-      value: m.torso, unit: '°', range: `${st.torso[0]}–${st.torso[1]}°`, status: s, tip,
-    });
+    add({ key: 'torso', label: 'Oberkörperwinkel', sub: 'Neigung zur Waagerechten', group: 'Cockpit-Höhe', value: m.torso, unit: '°', tip, action },
+      st.torso[0], st.torso[1], 5, 2);
   }
 
   // --- Hüftwinkel ---
   {
-    const s = m.hipMin >= st.hipMin ? 'ok' : m.hipMin >= st.hipMin - 5 ? 'warn' : 'bad';
-    const tip = s === 'ok'
-      ? 'Die Hüfte hat am oberen Totpunkt genug Platz.'
-      : 'Der Hüftwinkel wird oben sehr eng. Das kostet Leistung und kann in Hüfte und unterem Rücken zwicken. Abhilfe: Lenker höher, Sattel etwas weiter vor oder kürzere Kurbeln.';
-    items.push({
-      key: 'hipMin', label: 'Hüftwinkel oben (engste Stelle)', group: 'Lenkerhöhe',
-      value: m.hipMin, unit: '°', range: `mind. ${st.hipMin}°`, status: s, tip,
-    });
+    const tight = m.hipMin < st.hipMin;
+    add({
+      key: 'hipMin', label: 'Hüftwinkel oben', sub: 'Engste Stelle der Tretbewegung', group: 'Cockpit-Höhe', value: m.hipMin, unit: '°',
+      action: tight ? 'Hüftwinkel öffnen' : null,
+      tip: tight
+        ? `Der Hüftwinkel wird oben sehr eng. Das kostet Leistung und kann in Hüfte und unterem Rücken zwicken. Abhilfe: ${w.higher}, den Sattel etwas weiter vor oder kürzere Kurbeln.`
+        : 'Die Hüfte hat am oberen Totpunkt genug Platz.',
+    }, st.hipMin, null, 5, 1);
   }
 
   // --- Arme ---
   if (m.shoulder != null) {
-    const s = status(m.shoulder, st.shoulder, 5);
-    let tip = 'Der Winkel zwischen Oberkörper und Oberarm passt.';
+    let tip = 'Der Winkel zwischen Oberkörper und Oberarm passt.', action = null;
     if (m.shoulder > st.shoulder[1]) {
-      tip = 'Die Arme sind weit nach vorn gestreckt – die Sitzlänge ist vermutlich zu groß. Kürzeren Vorbau probieren oder die Griffposition näher holen.';
+      action = 'Sitzlänge verkürzen';
+      tip = `Die Arme sind weit nach vorn gestreckt – die Sitzlänge ist vermutlich zu groß. Abhilfe: ${w.shorter}.`;
     } else if (m.shoulder < st.shoulder[0]) {
-      tip = 'Die Arme stehen sehr nah am Oberkörper – das Cockpit ist vermutlich zu kurz. Längeren Vorbau probieren.';
+      action = 'Sitzlänge verlängern';
+      tip = `Die Arme stehen sehr nah am Oberkörper – das Cockpit ist vermutlich zu kurz. Abhilfe: ${w.longer}.`;
     }
-    items.push({
-      key: 'shoulder', label: 'Schulterwinkel (Oberkörper zu Oberarm)', group: 'Sitzlänge',
-      value: m.shoulder, unit: '°', range: `${st.shoulder[0]}–${st.shoulder[1]}°`, status: s, tip,
-    });
+    add({ key: 'shoulder', label: 'Schulterwinkel', sub: 'Oberkörper zu Oberarm', group: 'Sitzlänge', value: m.shoulder, unit: '°', tip, action },
+      st.shoulder[0], st.shoulder[1], 5, 1);
   }
   if (m.elbow != null) {
-    const s = status(m.elbow, st.elbow, 5);
-    let tip = 'Die Ellbogen sind leicht gebeugt – so sollen sie sein.';
+    let tip = key === 'tt' ? 'Die Unterarme liegen in einem guten Winkel auf.' : 'Die Ellbogen sind leicht gebeugt – so sollen sie sein.', action = null;
     if (m.elbow > st.elbow[1]) {
-      tip = 'Die Arme sind fast durchgestreckt. Stöße gehen dann direkt in Schultern und Nacken. Ellbogen bewusst locker beugen; wenn das nicht geht, ist das Cockpit zu lang oder zu tief.';
+      action = key === 'tt' ? 'Armauflagen näher holen' : 'Ellbogen lockerer beugen';
+      tip = key === 'tt'
+        ? `Die Arme sind sehr weit geöffnet – du liegst gestreckt auf den Auflagen. Abhilfe: ${w.shorter}.`
+        : 'Die Arme sind fast durchgestreckt. Stöße gehen dann direkt in Schultern und Nacken. Ellbogen bewusst locker beugen; wenn das nicht geht, ist das Cockpit zu lang oder zu tief.';
     } else if (m.elbow < st.elbow[0]) {
-      tip = 'Die Ellbogen sind stark gebeugt. Auf Dauer ermüdet das Arme und Schultern – möglicherweise ist das Cockpit zu kurz oder zu hoch.';
+      action = 'Cockpit prüfen (zu kurz/hoch)';
+      tip = `Die Ellbogen sind stark gebeugt. Auf Dauer ermüdet das Arme und Schultern – möglicherweise ist das Cockpit zu kurz oder zu hoch. Abhilfe: ${w.longer}.`;
     }
-    items.push({
-      key: 'elbow', label: 'Ellbogenwinkel', group: 'Sitzlänge',
-      value: m.elbow, unit: '°', range: `${st.elbow[0]}–${st.elbow[1]}°`, status: s, tip,
-    });
+    add({ key: 'elbow', label: 'Ellbogenwinkel', sub: 'Oberarm zu Unterarm', group: 'Sitzlänge', value: m.elbow, unit: '°', tip, action },
+      st.elbow[0], st.elbow[1], 5, 1);
   }
 
-  return items;
+  const wSum = items.reduce((s, i) => s + i.weight, 0);
+  const score = Math.round(items.reduce((s, i) => s + i.score * i.weight, 0) / wSum);
+  // Wichtigste Anpassung: größter gewichteter Punktverlust
+  const top = items.filter((i) => i.status !== 'ok')
+    .sort((a, c) => (100 - c.score) * c.weight - (100 - a.score) * a.weight)[0] ?? null;
+  const verdict = score >= 90 ? 'Sehr gute Position' : score >= 75 ? 'Gute Basis mit Feinschliff'
+    : score >= 55 ? 'Deutliches Potenzial' : 'Größere Anpassungen sinnvoll';
+  return { items, score, top, verdict, style: key };
+}
+
+/** Ruhe im Sattel – Zusatzwerte ohne Einfluss auf die Punktzahl. */
+export function stability(extras) {
+  const bob = extras.hipBob;
+  return {
+    value: bob,
+    status: bob <= 2.5 ? 'ok' : bob <= 4 ? 'warn' : 'bad',
+    tip: bob <= 2.5
+      ? 'Dein Becken bleibt beim Treten ruhig.'
+      : 'Deine Hüfte bewegt sich bei jeder Umdrehung deutlich auf und ab. Das spricht für einen zu hohen Sattel oder eine zu hohe Trittfrequenz für den gewählten Gang.',
+  };
+}
+
+/** Startwert für die Sattelhöhe aus der Schrittlänge (LeMond-Formel). */
+export function saddleFromInseam(inseamCm) {
+  return inseamCm >= 55 && inseamCm <= 110 ? Math.round(inseamCm * 0.883 * 10) / 10 : null;
 }
