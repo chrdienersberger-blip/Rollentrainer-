@@ -1,0 +1,72 @@
+:root {
+  --bg: #10151c; --card: #1a222d; --line: #2b3644; --text: #e8edf3; --muted: #9aa8b8;
+  --accent: #35c2ff; --ok: #3ddc84; --warn: #ffc247; --bad: #ff6b6b;
+}
+* { box-sizing: border-box; }
+html, body { margin: 0; background: var(--bg); color: var(--text);
+  font: 16px/1.45 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
+[hidden] { display: none !important; }
+.view { max-width: 720px; margin: 0 auto;
+  padding: 20px 16px calc(28px + env(safe-area-inset-bottom)); }
+h1 { font-size: 1.6rem; margin: 8px 0 8px; }
+h2 { font-size: 1.05rem; margin: 0 0 8px; }
+.lead { color: var(--muted); margin: 0 0 16px; }
+.note { color: var(--muted); font-size: .85rem; margin: 18px 0; }
+.error { color: var(--bad); background: #ff6b6b1a; border: 1px solid #ff6b6b55;
+  padding: 10px 12px; border-radius: 10px; }
+.card { background: var(--card); border: 1px solid var(--line); border-radius: 14px;
+  padding: 14px 16px; margin: 0 0 14px; }
+.steps { margin: 0; padding-left: 20px; color: var(--muted); }
+.steps li { margin: 4px 0; }
+.form { display: grid; gap: 12px; }
+.form label { display: grid; gap: 4px; font-size: .9rem; color: var(--muted); }
+select, input[type=number] { font: inherit; color: var(--text); background: var(--bg);
+  border: 1px solid var(--line); border-radius: 10px; padding: 11px 12px; width: 100%; }
+button, .filebtn { font: inherit; font-weight: 600; border: 0; border-radius: 12px;
+  padding: 14px 16px; width: 100%; cursor: pointer; display: block; text-align: center; margin: 0 0 10px; }
+.primary { background: var(--accent); color: #04202d; }
+.secondary { background: var(--card); color: var(--text); border: 1px solid var(--line); }
+.link { background: none; color: var(--accent); font-weight: 500; padding: 8px; }
+button:disabled { opacity: .5; }
+
+/* Messung */
+#live { max-width: 1100px; padding: 8px 8px calc(12px + env(safe-area-inset-bottom)); }
+.stage { position: relative; background: #000; border-radius: 12px; overflow: hidden; }
+#video { display: none; }
+#canvas { display: block; width: 100%; max-height: calc(100dvh - 90px); object-fit: contain; }
+.banner { position: absolute; top: 10px; left: 50%; transform: translateX(-50%);
+  background: #000b; padding: 8px 14px; border-radius: 999px; font-weight: 600;
+  text-align: center; max-width: 92%; }
+.banner.big { font-size: 2.2rem; padding: 10px 26px; }
+.banner.rec { background: #c62828e0; }
+.hud { position: absolute; left: 10px; bottom: 16px; display: flex; gap: 8px; }
+.hud div { background: #000b; border-radius: 10px; padding: 6px 10px; min-width: 68px; text-align: center; }
+.hud span { display: block; font-size: 1.3rem; font-weight: 700; font-variant-numeric: tabular-nums; }
+.hud small { color: var(--muted); font-size: .7rem; }
+.progress { position: absolute; left: 0; right: 0; bottom: 0; height: 6px; background: #fff2; }
+#progressBar { height: 100%; width: 0; background: var(--accent); }
+.row { display: flex; gap: 10px; margin-top: 10px; }
+.row button { margin: 0; }
+
+/* Ergebnis */
+figure { margin: 0 0 14px; }
+figure img { width: 100%; border-radius: 12px; display: block; }
+figcaption { color: var(--muted); font-size: .8rem; margin-top: 4px; }
+.group { color: var(--muted); font-size: .78rem; text-transform: uppercase;
+  letter-spacing: .06em; margin: 18px 0 6px; }
+.item { border-left: 5px solid var(--line); }
+.item.ok { border-left-color: var(--ok); }
+.item.warn { border-left-color: var(--warn); }
+.item.bad { border-left-color: var(--bad); }
+.item .head { display: flex; justify-content: space-between; align-items: baseline; gap: 10px; }
+.item .label { font-weight: 600; }
+.item .value { font-size: 1.5rem; font-weight: 700; white-space: nowrap; font-variant-numeric: tabular-nums; }
+.item .meta { color: var(--muted); font-size: .85rem; margin: 2px 0 8px; }
+.item .tip { margin: 0; }
+.badge { display: inline-block; font-size: .72rem; font-weight: 700; border-radius: 999px;
+  padding: 2px 8px; margin-right: 6px; color: #10151c; }
+.ok .badge { background: var(--ok); } .warn .badge { background: var(--warn); } .bad .badge { background: var(--bad); }
+.hist { display: flex; justify-content: space-between; gap: 10px; padding: 8px 0;
+  border-top: 1px solid var(--line); font-size: .9rem; }
+.hist:first-child { border-top: 0; }
+.hist small { color: var(--muted); }
