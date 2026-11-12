@@ -3,12 +3,12 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-  <meta name="theme-color" content="#0a0e13">
+  <meta name="theme-color" content="#f3f1ec">
   <meta name="apple-mobile-web-app-capable" content="yes">
-  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-status-bar-style" content="default">
   <title>Sitzcheck – Sitzposition auf dem Rollentrainer</title>
   <link rel="manifest" href="manifest.webmanifest">
-  <link rel="stylesheet" href="style.css">
+  <link rel="stylesheet" href="style.css?v=5">
 </head>
 <body>
   <!-- Einrichtung -->
@@ -41,7 +41,7 @@
     </section>
 
     <section class="card">
-      <div class="step"><span>3</span><h2>Deine Maße</h2></div>
+      <div class="step"><span>3</span><h2>Dein Körper</h2></div>
       <div class="grid2">
         <label>Körpergröße
           <span class="field"><input id="height" type="number" inputmode="numeric" min="130" max="220" value="175"><i>cm</i></span>
@@ -80,6 +80,7 @@
     </section>
 
     <p class="note">Das Video wird nur auf deinem Gerät ausgewertet und nicht hochgeladen. Die Messung ist eine Orientierung (Genauigkeit etwa ±3–5°) und ersetzt kein professionelles Bikefitting.</p>
+    <p class="note ver">Sitzcheck · Version 5</p>
   </main>
 
   <!-- Messung -->
@@ -113,6 +114,6 @@
     <button id="againBtn" class="primary">Neue Messung</button>
   </main>
 
-  <script type="module" src="js/app.js"></script>
+  <script type="module" src="js/app.js?v=5"></script>
 </body>
 </html>

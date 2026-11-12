@@ -246,19 +246,19 @@ async function start(mode, file) {
 function drawSkeleton(p, angles) {
   const u = Math.max(2, canvas.width / 320);
   const line = (pts, color) => {
-    ctx.strokeStyle = color; ctx.lineWidth = u * 1.6; ctx.lineCap = 'round'; ctx.lineJoin = 'round';
+    ctx.strokeStyle = color; ctx.lineWidth = u * 1.1; ctx.lineCap = 'round'; ctx.lineJoin = 'round';
     ctx.beginPath();
     pts.forEach((q, i) => (i ? ctx.lineTo(q.x, q.y) : ctx.moveTo(q.x, q.y)));
     ctx.stroke();
   };
-  line([p.wrist, p.elbow, p.shoulder, p.hip], '#4cc9ff');
-  line([p.hip, p.knee, p.ankle], '#8b7bff');
-  line([p.heel, p.ankle, p.toe, p.heel], '#ffc247');
+  line([p.wrist, p.elbow, p.shoulder, p.hip], '#ffffff');
+  line([p.hip, p.knee, p.ankle], '#ffffff');
+  line([p.heel, p.ankle, p.toe, p.heel], '#ffffff');
   ctx.fillStyle = '#fff';
   for (const q of [p.wrist, p.elbow, p.shoulder, p.hip, p.knee, p.ankle]) {
     ctx.beginPath(); ctx.arc(q.x, q.y, u * 2, 0, Math.PI * 2); ctx.fill();
   }
-  ctx.font = `800 ${u * 9}px system-ui, sans-serif`;
+  ctx.font = `500 ${u * 9}px "Helvetica Neue", Helvetica, Arial, sans-serif`;
   ctx.lineWidth = u; ctx.strokeStyle = '#000';
   const label = `${Math.round(angles.knee)}°`;
   ctx.strokeText(label, p.knee.x + u * 5, p.knee.y);
@@ -347,14 +347,10 @@ function scoreCard(ev, result) {
   const card = el('section', 'card scorecard');
   const ring = el('div', 'ring');
   const svg = svgEl('svg', { viewBox: '0 0 120 120', 'aria-hidden': 'true' }, ring);
-  const defs = svgEl('defs', {}, svg);
-  const g = svgEl('linearGradient', { id: 'sg', x1: 0, y1: 0, x2: 1, y2: 1 }, defs);
-  svgEl('stop', { offset: 0, 'stop-color': '#4cc9ff' }, g);
-  svgEl('stop', { offset: 1, 'stop-color': '#8b7bff' }, g);
   const C = 2 * Math.PI * 52;
-  svgEl('circle', { cx: 60, cy: 60, r: 52, fill: 'none', stroke: '#243040', 'stroke-width': 9 }, svg);
+  svgEl('circle', { cx: 60, cy: 60, r: 52, fill: 'none', stroke: '#d6d1c6', 'stroke-width': 1.5 }, svg);
   svgEl('circle', {
-    cx: 60, cy: 60, r: 52, fill: 'none', stroke: 'url(#sg)', 'stroke-width': 9, 'stroke-linecap': 'round',
+    cx: 60, cy: 60, r: 52, fill: 'none', stroke: '#111110', 'stroke-width': 3.5, 'stroke-linecap': 'butt',
     'stroke-dasharray': `${(C * ev.score) / 100} ${C}`,
   }, svg);
   const num = el('div', 'num');
@@ -396,29 +392,29 @@ function kneeChart(curve) {
   const x = (i) => L + (i / n) * (W - L - R);
   const y = (v) => T + (1 - (v - yMin) / (yMax - yMin)) * (H - T - B);
   const text = (s, tx, ty, anchor = 'middle') => {
-    const t = svgEl('text', { x: tx, y: ty, 'text-anchor': anchor, fill: '#8fa0b3', 'font-size': 9.5, 'font-family': 'system-ui, sans-serif' }, svg);
+    const t = svgEl('text', { x: tx, y: ty, 'text-anchor': anchor, fill: '#77736b', 'font-size': 8.5, 'font-family': 'Helvetica Neue, Helvetica, Arial, sans-serif' }, svg);
     t.textContent = s;
     return t;
   };
   for (let v = Math.ceil(yMin / 30) * 30; v <= yMax; v += 30) {
-    svgEl('line', { x1: L, x2: W - R, y1: y(v), y2: y(v), stroke: '#243040', 'stroke-width': 1 }, svg);
+    svgEl('line', { x1: L, x2: W - R, y1: y(v), y2: y(v), stroke: '#d6d1c6', 'stroke-width': 1 }, svg);
     text(`${v}°`, L - 5, y(v) + 3, 'end');
   }
-  svgEl('rect', { x: L, y: y(150), width: W - L - R, height: y(140) - y(150), fill: '#3ddc84', opacity: 0.18, rx: 2 }, svg);
+  svgEl('rect', { x: L, y: y(150), width: W - L - R, height: y(140) - y(150), fill: '#3f6b4f', opacity: 0.22 }, svg);
   text('Ziel 140–150°', W - R - 4, y(150) - 4, 'end');
   [['Kurbel oben', 0, 'start'], ['unten', n / 2, 'middle'], ['oben', n, 'end']].forEach(([s, i, a]) => text(s, x(i), H - 6, a));
   svgEl('polyline', {
     points: pts.map((v, i) => `${x(i).toFixed(1)},${y(v).toFixed(1)}`).join(' '),
-    fill: 'none', stroke: '#4cc9ff', 'stroke-width': 2, 'stroke-linejoin': 'round', 'stroke-linecap': 'round',
+    fill: 'none', stroke: '#111110', 'stroke-width': 2, 'stroke-linejoin': 'round', 'stroke-linecap': 'round',
   }, svg);
   const iMax = curve.indexOf(Math.max(...curve));
-  svgEl('circle', { cx: x(iMax), cy: y(curve[iMax]), r: 4, fill: '#4cc9ff', stroke: '#121923', 'stroke-width': 2 }, svg);
+  svgEl('circle', { cx: x(iMax), cy: y(curve[iMax]), r: 4, fill: '#111110', stroke: '#f3f1ec', 'stroke-width': 2 }, svg);
   const peak = text(`${de(curve[iMax])}°`, x(iMax), y(curve[iMax]) - 9);
-  peak.setAttribute('fill', '#eef3f8'); peak.setAttribute('font-weight', 700);
+  peak.setAttribute('fill', '#111110'); peak.setAttribute('font-weight', 700);
 
   // Fadenkreuz + Tooltip
-  const cross = svgEl('line', { y1: T, y2: H - B, stroke: '#8fa0b3', 'stroke-width': 1, visibility: 'hidden' }, svg);
-  const dot = svgEl('circle', { r: 4, fill: '#eef3f8', stroke: '#121923', 'stroke-width': 2, visibility: 'hidden' }, svg);
+  const cross = svgEl('line', { y1: T, y2: H - B, stroke: '#77736b', 'stroke-width': 1, visibility: 'hidden' }, svg);
+  const dot = svgEl('circle', { r: 4, fill: '#a8553a', stroke: '#f3f1ec', 'stroke-width': 2, visibility: 'hidden' }, svg);
   const tip = el('div', 'tooltip');
   tip.hidden = true;
   wrap.append(tip);

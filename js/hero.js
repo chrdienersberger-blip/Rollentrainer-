@@ -22,9 +22,9 @@ const SPECS = {
 };
 
 const C = {
-  frame: '#e3e9f0', frameShade: '#b9c4d1', tyre: '#3d4a5c', rim: '#586779', spoke: '#4a5869',
-  metal: '#8f9db0', dark: '#2a3442', skin: '#dba583', skinFar: '#8a6b5b', shorts: '#34415a',
-  sock: '#f2f5f8', shoe: '#f2f5f8', helmet: '#f2f5f8', glass: '#1b2430',
+  frame: '#171716', frameShade: '#34332f', tyre: '#1c1c1b', rim: '#3a3935', spoke: '#a39e94',
+  metal: '#77736b', dark: '#111110', skin: '#d9a888', shorts: '#4b4d40', jersey: '#a8553a',
+  sock: '#fbfaf7', shoe: '#fbfaf7', helmet: '#111110', glass: '#111110', paper: '#f3f1ec', ink: '#111110',
 };
 
 const svgEl = (tag, attrs = {}, parent) => {
@@ -50,7 +50,7 @@ function wheel(parent, cx, cy, spec, isRear) {
   const R = 34, rimR = R - spec.tyre / 2 - spec.rim / 2 - 0.3;
   const spokes = svgEl('g', {}, g);
   if (spec.disc && isRear) {
-    svgEl('circle', { cx, cy, r: R - spec.tyre, fill: '#2f3a49', stroke: C.rim, 'stroke-width': 0.6 }, g);
+    svgEl('circle', { cx, cy, r: R - spec.tyre, fill: '#262624', stroke: C.rim, 'stroke-width': 0.6 }, g);
     svgEl('line', { x1: cx - 8, y1: cy, x2: cx + 8, y2: cy, stroke: C.rim, 'stroke-width': 0.8 }, spokes);
   } else {
     for (let i = 0; i < 9; i++) {
@@ -94,7 +94,7 @@ function buildBike(layer, textLayer, bike) {
   line([spec.H2, F], C.frameShade, t.fork);
   line([spec.H1, spec.H2], C.frame, t.down * 0.9);
   // Sattel
-  svgEl('path', { d: 'M-32,65.2 Q-31,62.6 -24,63 L-10,63.4 Q-6.5,63.6 -6.5,64.6 Q-14,65.6 -22,65.4 Q-28,66.6 -32,65.2 Z', fill: C.dark, stroke: '#46546a', 'stroke-width': 0.5 }, layer);
+  svgEl('path', { d: 'M-32,65.2 Q-31,62.6 -24,63 L-10,63.4 Q-6.5,63.6 -6.5,64.6 Q-14,65.6 -22,65.4 Q-28,66.6 -32,65.2 Z', fill: C.dark, stroke: C.dark, 'stroke-width': 0.5 }, layer);
   // Cockpit
   const Cx = spec.H1[0] + spec.stem[0], Cy = spec.H1[1] + spec.stem[1];
   line([[spec.H1[0] - 0.6, spec.H1[1] + 2], [Cx, Cy]], C.dark, 2.8);
@@ -118,7 +118,7 @@ function buildBike(layer, textLayer, bike) {
     const ang = (Math.atan2(spec.H2[1], spec.H2[0]) * 180) / Math.PI;
     const txt = svgEl('text', {
       transform: `translate(${spec.H2[0] * 0.5},${-spec.H2[1] * 0.5}) rotate(${-ang})`,
-      'text-anchor': 'middle', 'dominant-baseline': 'central', fill: '#1b2430',
+      'text-anchor': 'middle', 'dominant-baseline': 'central', fill: C.paper,
       'font-size': Math.min(3.2, t.down * 0.74), 'font-weight': 800, 'letter-spacing': 0.5,
       'font-family': 'system-ui, sans-serif',
     }, textLayer);
@@ -133,13 +133,9 @@ function buildBike(layer, textLayer, bike) {
  * getState(): { style, bike } – wird in jedem Bild abgefragt.
  */
 export function initHero(svg, caption, getState, isVisible) {
-  const defs = svgEl('defs', {}, svg);
-  const grad = svgEl('linearGradient', { id: 'hg', x1: 0, y1: 0, x2: 1, y2: 1 }, defs);
-  svgEl('stop', { offset: 0, 'stop-color': '#4cc9ff' }, grad);
-  svgEl('stop', { offset: 1, 'stop-color': '#8b7bff' }, grad);
   const root = svgEl('g', { transform: 'scale(1,-1)', 'stroke-linecap': 'round', 'stroke-linejoin': 'round' }, svg);
-  svgEl('ellipse', { cx: 9, cy: -27.5, rx: 78, ry: 2.2, fill: '#05080c', opacity: 0.55 }, root);
-  svgEl('line', { x1: -88, x2: 108, y1: -27, y2: -27, stroke: '#243040', 'stroke-width': 0.6 }, root);
+  svgEl('ellipse', { cx: 9, cy: -27.5, rx: 78, ry: 2.2, fill: C.ink, opacity: 0.1 }, root);
+  svgEl('line', { x1: -88, x2: 108, y1: -27, y2: -27, stroke: '#bdb8ad', 'stroke-width': 0.4 }, root);
 
   const part = (parent, fill, extra = {}) => svgEl('path', { fill, ...extra }, parent);
   // Reihenfolge = Tiefe: hinteres Bein, Rad, vorderes Bein, Rumpf, Arm, Kopf
@@ -148,28 +144,28 @@ export function initHero(svg, caption, getState, isVisible) {
   const fThigh = part(far, C.skin), fShorts = part(far, C.shorts), fShank = part(far, C.skin);
   const fSock = part(far, C.sock), fShoe = part(far, C.shoe);
   const bikeLayer = svgEl('g', {}, root);
-  const ring = svgEl('circle', { cx: 0, cy: 0, r: 9.3, fill: '#1b2430', stroke: C.metal, 'stroke-width': 1.3 }, root);
+  const ring = svgEl('circle', { cx: 0, cy: 0, r: 9.3, fill: '#262624', stroke: C.metal, 'stroke-width': 1.3 }, root);
   const crank = svgEl('line', { stroke: C.metal, 'stroke-width': 2.2 }, root);
   const pedal = svgEl('line', { stroke: C.dark, 'stroke-width': 1.8 }, root);
   const shank = part(root, C.skin), sock = part(root, C.sock), shoe = part(root, C.shoe);
   const sole = svgEl('line', { stroke: C.dark, 'stroke-width': 1.1 }, root);
   const thigh = part(root, C.skin), shorts = part(root, C.shorts);
-  const torso = part(root, 'url(#hg)');
+  const torso = part(root, C.jersey);
   const hipCap = svgEl('circle', { r: 7.8, fill: C.shorts }, root);
   const neck = part(root, C.skin);
   const head = svgEl('circle', { r: 6.6, fill: C.skin }, root);
-  const helmet = part(root, C.helmet, { stroke: '#c5ced9', 'stroke-width': 0.4 });
+  const helmet = part(root, C.helmet, { stroke: C.dark, 'stroke-width': 0.4 });
   const glasses = svgEl('line', { stroke: C.glass, 'stroke-width': 2.1 }, root);
-  const upperArm = part(root, C.skin), sleeve = part(root, 'url(#hg)');
+  const upperArm = part(root, C.skin), sleeve = part(root, C.jersey);
   const forearm = part(root, C.skin), hand = part(root, C.glass);
   // Mess-Overlay
-  const arc = svgEl('path', { stroke: '#eef3f8', 'stroke-width': 0.8, 'stroke-dasharray': '1.5 2', fill: 'none' }, root);
+  const arc = svgEl('path', { stroke: C.ink, 'stroke-width': 0.5, 'stroke-dasharray': '1 1.6', fill: 'none' }, root);
   const joints = ['shoulder', 'elbow', 'hip', 'knee', 'ankle'].map((k) =>
-    [k, svgEl('circle', { r: 1.9, fill: '#0a0e13', stroke: '#eef3f8', 'stroke-width': 1 }, root)]);
+    [k, svgEl('circle', { r: 1.7, fill: C.paper, stroke: C.ink, 'stroke-width': 0.8 }, root)]);
   const textLayer = svgEl('g', {}, svg);
-  const label = svgEl('text', { fill: '#eef3f8', 'font-size': 8, 'font-weight': 800, 'font-family': 'system-ui, sans-serif' }, svg);
-  const sub = svgEl('text', { fill: '#8fa0b3', 'font-size': 4.6, 'font-family': 'system-ui, sans-serif' }, svg);
-  sub.textContent = 'Kniewinkel';
+  const label = svgEl('text', { fill: C.ink, stroke: '#e4dfd5', 'stroke-width': 2.4, 'paint-order': 'stroke', 'stroke-linejoin': 'round', 'font-size': 9, 'font-weight': 500, 'letter-spacing': -0.3, 'font-family': 'Helvetica Neue, Helvetica, Arial, sans-serif' }, svg);
+  const sub = svgEl('text', { fill: '#55524c', stroke: '#e4dfd5', 'stroke-width': 1.6, 'paint-order': 'stroke', 'stroke-linejoin': 'round', 'font-size': 3.2, 'letter-spacing': 0.5, 'font-family': 'Helvetica Neue, Helvetica, Arial, sans-serif' }, svg);
+  sub.textContent = 'KNIEWINKEL';
 
   let bikeKey = null, bikeParts = null;
   const cur = { torso: TORSO[getState().style] ?? 44, wrist: null };
