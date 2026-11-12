@@ -1,0 +1,10 @@
+{
+  "name": "Sitzposition prüfen – Rollentrainer",
+  "short_name": "Sitzposition",
+  "lang": "de",
+  "start_url": ".",
+  "display": "standalone",
+  "orientation": "any",
+  "background_color": "#10151c",
+  "theme_color": "#10151c"
+}
