@@ -1,7 +1,8 @@
-import { extractSide, coreVisibility, frameAngles, analyzeSession, angleAt } from './analysis.js';
+import { extractSide, coreVisibility, frameAngles, analyzeSession } from './analysis.js';
 import { evaluate, stability, saddleFromInseam, STYLES } from './evaluate.js';
 import { BRANDS, CATEGORIES, findBike } from './bikes.js';
-import { syntheticSession, riderPose } from './demo.js';
+import { syntheticSession } from './demo.js';
+import { initHero } from './hero.js';
 
 const MP_VERSION = '0.10.14';
 const MP_BASE = `https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@${MP_VERSION}`;
@@ -144,85 +145,6 @@ function initSetup() {
     $(id).oninput = () => { prefs[id] = $(id).value; store.set(SETTINGS_KEY, prefs); };
   }
   renderBikeInfo();
-}
-
-// ---------- Animierte Startgrafik ----------
-const HERO = {
-  komfort: { torso: 52, wx: 68, wy: 6 },
-  sport: { torso: 44, wx: 76, wy: -2 },
-  rennen: { torso: 36, wx: 80, wy: -8 },
-  tt: { torso: 22, wx: 78, wy: -14 },
-};
-function initHero() {
-  const svg = $('heroSvg');
-  const defs = svgEl('defs', {}, svg);
-  const grad = svgEl('linearGradient', { id: 'hg', x1: 0, y1: 0, x2: 1, y2: 1 }, defs);
-  svgEl('stop', { offset: 0, 'stop-color': '#4cc9ff' }, grad);
-  svgEl('stop', { offset: 1, 'stop-color': '#8b7bff' }, grad);
-  const g = svgEl('g', { transform: 'scale(1,-1)', fill: 'none', 'stroke-linecap': 'round', 'stroke-linejoin': 'round' }, svg);
-  const frameCol = '#3a4a5e';
-  const line = (pts, stroke, w, parent = g) =>
-    svgEl('polyline', { points: pts.map((p) => p.join(',')).join(' '), stroke, 'stroke-width': w }, parent);
-
-  line([[-88, -27], [108, -27]], '#243040', 0.8);
-  for (const x of [-41, 59]) {
-    svgEl('circle', { cx: x, cy: 7, r: 33, stroke: frameCol, 'stroke-width': 2.2 }, g);
-    svgEl('circle', { cx: x, cy: 7, r: 1.8, fill: frameCol }, g);
-  }
-  const BB = [0, 0], S = [-15.2, 49.7], H1 = [41, 56], H2 = [44.5, 44], R = [-41, 7], F = [59, 7];
-  line([R, BB, S, R], frameCol, 2.2);
-  line([S, H1, H2, BB], frameCol, 2.2);
-  line([H2, F], frameCol, 2.2);
-  line([S, [-20.2, 66]], frameCol, 2.2);
-  line([[-32, 67], [-9, 67]], '#55677d', 3);
-  const bar = line([], frameCol, 2.2);
-  const farLeg = line([], '#33455a', 3.2);
-  const crank = line([], '#55677d', 2.4);
-  const body = line([], 'url(#hg)', 3.6);
-  const leg = line([], 'url(#hg)', 3.6);
-  const foot = line([], 'url(#hg)', 3);
-  const head = svgEl('circle', { r: 8.5, stroke: 'url(#hg)', 'stroke-width': 3.2 }, g);
-  const arc = svgEl('path', { stroke: '#eef3f8', 'stroke-width': 0.9, 'stroke-dasharray': '1.5 2' }, g);
-  const joints = ['shoulder', 'elbow', 'hip', 'knee', 'ankle'].map((k) =>
-    [k, svgEl('circle', { r: 2.3, fill: '#0a0e13', stroke: '#eef3f8', 'stroke-width': 1.3 }, g)]);
-  const label = svgEl('text', { fill: '#eef3f8', 'font-size': 8, 'font-weight': 800, 'font-family': 'system-ui, sans-serif' }, svg);
-  const sub = svgEl('text', { fill: '#8fa0b3', 'font-size': 4.6, 'font-family': 'system-ui, sans-serif' }, svg);
-  sub.textContent = 'Kniewinkel';
-
-  const cur = { ...HERO[prefs.style] };
-  const set = (node, pts) => node.setAttribute('points', pts.map((p) => `${p.x.toFixed(1)},${p.y.toFixed(1)}`).join(' '));
-  const reduced = matchMedia('(prefers-reduced-motion: reduce)').matches;
-
-  function draw(th) {
-    const target = HERO[prefs.style] ?? HERO.sport;
-    for (const k of ['torso', 'wx', 'wy']) cur[k] += (target[k] - cur[k]) * (reduced ? 1 : 0.08);
-    const opts = { torsoDeg: cur.torso, wristOffset: { x: cur.wx, y: cur.wy } };
-    const p = riderPose(th, opts), q = riderPose(th + Math.PI, opts);
-    set(farLeg, [q.hip, q.knee, q.ankle, q.toe]);
-    set(crank, [q.spindle, p.spindle]);
-    set(bar, [{ x: 41, y: 56 }, { x: p.wrist.x - 7, y: p.wrist.y - 4 }, p.wrist]);
-    set(body, [p.wrist, p.elbow, p.shoulder, p.hip]);
-    set(leg, [p.hip, p.knee, p.ankle]);
-    set(foot, [p.heel, p.ankle, p.toe]);
-    const rad = (cur.torso * Math.PI) / 180;
-    head.setAttribute('cx', p.shoulder.x + 13 * Math.cos(rad + 0.25));
-    head.setAttribute('cy', p.shoulder.y + 13 * Math.sin(rad + 0.25));
-    for (const [k, c] of joints) { c.setAttribute('cx', p[k].x); c.setAttribute('cy', p[k].y); }
-    // Winkelbogen am Knie
-    const a1 = Math.atan2(p.hip.y - p.knee.y, p.hip.x - p.knee.x);
-    const a2 = Math.atan2(p.ankle.y - p.knee.y, p.ankle.x - p.knee.x);
-    const r = 9, pt = (a) => `${(p.knee.x + r * Math.cos(a)).toFixed(1)},${(p.knee.y + r * Math.sin(a)).toFixed(1)}`;
-    arc.setAttribute('d', `M${pt(a1)} A${r},${r} 0 0 0 ${pt(a2)}`);
-    label.textContent = `${Math.round(angleAt(p.hip, p.knee, p.ankle))}°`;
-    label.setAttribute('x', p.knee.x + 9); label.setAttribute('y', -p.knee.y - 1);
-    sub.setAttribute('x', p.knee.x + 9); sub.setAttribute('y', -p.knee.y + 5);
-  }
-  if (reduced) { draw(2.2); setInterval(() => draw(2.2), 400); return; }
-  const tick = (t) => {
-    if (!$('setup').hidden && !document.hidden) draw((t / 1000) * 2 * Math.PI * (62 / 60));
-    requestAnimationFrame(tick);
-  };
-  requestAnimationFrame(tick);
 }
 
 // ---------- Pose-Modell ----------
@@ -657,5 +579,7 @@ document.addEventListener('visibilitychange', () => {
 });
 
 initSetup();
-initHero();
+initHero($('heroSvg'), $('heroCaption'),
+  () => ({ style: prefs.style, bike: findBike(prefs.bike) }),
+  () => !$('setup').hidden && !document.hidden);
 renderHistory();
