@@ -8,11 +8,14 @@
   <meta name="apple-mobile-web-app-status-bar-style" content="default">
   <title>Sitzcheck – Training und Bike-Fitting auf dem Rollentrainer</title>
   <link rel="manifest" href="manifest.webmanifest">
-  <link rel="stylesheet" href="style.css?v=9">
+  <link rel="stylesheet" href="style.css?v=10">
 </head>
 <body>
   <nav class="rail" aria-label="Hauptmenü">
-    <div class="raillogo">S</div>
+    <a class="raillogo" href="#start" aria-label="Sitzcheck Startseite">S</a>
+    <a href="#start" data-sec="start">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 11 12 4l8 7v9h-5v-6H9v6H4z"/></svg><span>Start</span>
+    </a>
     <a href="#training" data-sec="training">
       <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M13 2 5 13.5h6L10 22l9-12h-6.2z"/></svg><span>Training</span>
     </a>
@@ -24,6 +27,7 @@
     </a>
   </nav>
 
+  <section id="sec-start" class="sec" hidden><main id="start" class="view"></main></section>
   <section id="sec-training" class="sec" hidden><main id="training" class="view"></main></section>
   <section id="sec-markt" class="sec" hidden><main id="market" class="view"></main></section>
 
@@ -97,7 +101,7 @@
     </section>
 
     <p class="note">Das Video wird nur auf deinem Gerät ausgewertet und gespeichert, nichts wird hochgeladen. Messungen bleiben im Speicher dieses Browsers; das Video gibt es für die vier neuesten. Die Messung ist eine Orientierung (Genauigkeit etwa ±3–5°) und ersetzt kein professionelles Bikefitting.</p>
-    <p class="note ver">Sitzcheck · Version 9</p>
+    <p class="note ver">Sitzcheck · Version 10</p>
   </main>
 
   <!-- Messung -->
@@ -133,7 +137,7 @@
 
   </section>
 
-  <script type="module" src="js/shell.js?v=9"></script>
-  <script type="module" src="js/app.js?v=9"></script>
+  <script type="module" src="js/shell.js?v=10"></script>
+  <script type="module" src="js/app.js?v=10"></script>
 </body>
 </html>

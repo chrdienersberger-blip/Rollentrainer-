@@ -2,8 +2,8 @@
 // Die Silhouette wird aus den Gelenkpunkten aufgebaut (Bein, Oberkörper, Arm)
 // und je Körperbereich danach eingefärbt, ob er im Zielbereich liegt.
 
-import { frameAngles, median } from './analysis.js?v=9';
-import { statusOf } from './evaluate.js?v=9';
+import { frameAngles, median } from './analysis.js?v=10';
+import { statusOf } from './evaluate.js?v=10';
 
 export const REGIONS = [
   { key: 'leg', label: 'Bein', what: 'Kniestreckung je Umdrehung' },
@@ -19,9 +19,11 @@ export function clipStatuses(frames, styleKey, cadence = 85) {
   const ang = frames.map((f) => (f.c ? frameAngles(pts(f)) : null));
   const half = 60000 / (cadence || 85) / 2;
   const out = { leg: [], torso: [], arm: [] };
+  const angles = [], kneeMax = [];
   let lo = 0, hi = 0;
   frames.forEach((f, i) => {
-    if (!ang[i]) { out.leg.push(null); out.torso.push(null); out.arm.push(null); return; }
+    angles.push(ang[i]);
+    if (!ang[i]) { out.leg.push(null); out.torso.push(null); out.arm.push(null); kneeMax.push(null); return; }
     // Bein: größte Kniestreckung innerhalb einer Kurbelumdrehung um dieses Bild
     while (frames[lo].t < f.t - half) lo++;
     while (hi + 1 < frames.length && frames[hi + 1].t <= f.t + half) hi++;
@@ -29,6 +31,7 @@ export function clipStatuses(frames, styleKey, cadence = 85) {
     for (let j = lo; j <= hi; j++) if (ang[j]) kMax = Math.max(kMax, ang[j].knee);
     const full = frames[hi].t - frames[lo].t >= half * 1.5; // am Rand fehlt ein Teil der Umdrehung
     out.leg.push(full ? statusOf('kneeExt', kMax, styleKey) : null);
+    kneeMax.push(full ? kMax : null);
     // Oberkörper und Arme: leicht geglätteter Momentanwert
     const near = ang.slice(Math.max(0, i - 4), i + 5).filter(Boolean);
     out.torso.push(statusOf('torso', median(near.map((a) => a.torso)), styleKey));
@@ -41,6 +44,10 @@ export function clipStatuses(frames, styleKey, cadence = 85) {
     for (let i = 1; i < arr.length; i++) arr[i] ??= arr[i - 1];
     for (let i = arr.length - 2; i >= 0; i--) arr[i] ??= arr[i + 1];
   }
+  for (let i = 1; i < kneeMax.length; i++) kneeMax[i] ??= kneeMax[i - 1];
+  for (let i = kneeMax.length - 2; i >= 0; i--) kneeMax[i] ??= kneeMax[i + 1];
+  // Einzelwinkel je Bild (für die Anzeige im Video) – nicht Teil der drei Bereiche
+  Object.defineProperties(out, { angles: { value: angles }, kneeMax: { value: kneeMax } });
   return out;
 }
 
@@ -106,4 +113,56 @@ export function drawOutline(ctx, frame, st, w, h) {
   for (const [path] of regions) ctx.fill(path);
   ctx.globalCompositeOperation = 'source-over';
   for (const [path, s] of regions) { ctx.fillStyle = `rgba(${RGB[s]},0.16)`; ctx.fill(path); }
+}
+
+/** Zeichnet Gelenke, Verbindungslinien und Winkelwerte für ein Bild. ang = Winkel dieses Bildes. */
+export function drawSkeleton(ctx, frame, ang, w, h) {
+  if (!frame?.c || !ang) return;
+  const p = frame.p;
+  const S = Math.hypot(p.knee[0] - p.ankle[0], p.knee[1] - p.ankle[1]) || 1;
+  const u = Math.max(1.5, S / 60);
+  const chain = (pts) => {
+    ctx.beginPath();
+    pts.forEach((q, i) => (i ? ctx.lineTo(q[0], q[1]) : ctx.moveTo(q[0], q[1])));
+    ctx.lineJoin = ctx.lineCap = 'round';
+    ctx.strokeStyle = 'rgba(0,0,0,0.55)'; ctx.lineWidth = u * 2.6; ctx.stroke();
+    ctx.strokeStyle = '#fff'; ctx.lineWidth = u * 1.2; ctx.stroke();
+  };
+  chain([p.shoulder, p.hip, p.knee, p.ankle]);
+  if (p.heel && p.toe) chain([p.heel, p.ankle, p.toe]);
+  if (frame.a) chain([p.shoulder, p.elbow, p.wrist]);
+
+  // Winkelbogen am Gelenk b zwischen a und c
+  const arc = (a, b, c, r) => {
+    const a1 = Math.atan2(a[1] - b[1], a[0] - b[0]), a2 = Math.atan2(c[1] - b[1], c[0] - b[0]);
+    let sweep = a2 - a1;
+    while (sweep > Math.PI) sweep -= 2 * Math.PI;
+    while (sweep < -Math.PI) sweep += 2 * Math.PI;
+    ctx.beginPath();
+    ctx.arc(b[0], b[1], r, a1, a2, sweep < 0);
+    ctx.strokeStyle = 'rgba(0,0,0,0.55)'; ctx.lineWidth = u * 2.2; ctx.stroke();
+    ctx.strokeStyle = '#fff'; ctx.lineWidth = u; ctx.stroke();
+  };
+  const label = (text, x, y, align = 'left') => {
+    ctx.font = `600 ${Math.round(u * 9)}px "Helvetica Neue", Helvetica, Arial, sans-serif`;
+    ctx.textAlign = align; ctx.textBaseline = 'middle'; ctx.lineJoin = 'round';
+    ctx.strokeStyle = 'rgba(0,0,0,0.7)'; ctx.lineWidth = u * 2.6; ctx.strokeText(text, x, y);
+    ctx.fillStyle = '#fff'; ctx.fillText(text, x, y);
+  };
+  const dir = Math.sign(p.shoulder[0] - p.hip[0]) || 1; // Blickrichtung im Bild
+  const r = 0.28 * S;
+  arc(p.hip, p.knee, p.ankle, r);
+  label(`${Math.round(ang.knee)}°`, p.knee[0] + dir * 0.4 * S, p.knee[1], dir > 0 ? 'left' : 'right');
+  arc(p.shoulder, p.hip, p.knee, r);
+  label(`${Math.round(ang.hip)}°`, p.hip[0] - dir * 0.42 * S, p.hip[1], dir > 0 ? 'right' : 'left');
+  if (frame.a) {
+    arc(p.hip, p.shoulder, p.elbow, r * 0.8);
+    label(`${Math.round(ang.shoulder)}°`, p.shoulder[0] - dir * 0.3 * S, p.shoulder[1] - 0.3 * S, dir > 0 ? 'right' : 'left');
+    arc(p.shoulder, p.elbow, p.wrist, r * 0.7);
+    label(`${Math.round(ang.elbow)}°`, p.elbow[0], p.elbow[1] + 0.36 * S, 'center');
+  }
+  ctx.fillStyle = '#fff'; ctx.strokeStyle = 'rgba(0,0,0,0.7)'; ctx.lineWidth = u * 0.8;
+  for (const k of ['shoulder', 'hip', 'knee', 'ankle', ...(frame.a ? ['elbow', 'wrist'] : [])]) {
+    ctx.beginPath(); ctx.arc(p[k][0], p[k][1], u * 2.2, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
+  }
 }

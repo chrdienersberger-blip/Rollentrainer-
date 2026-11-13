@@ -1,6 +1,6 @@
 # Sitzcheck – Training und Bike-Fitting auf dem Rollentrainer
 
-Web-App mit drei Bereichen, erreichbar über die Menüleiste links:
+Web-App mit Startseite und drei Bereichen, erreichbar über die Menüleiste links:
 
 - **Training:** Smart Trainer per Bluetooth (FTMS) verbinden und strukturierte
   Workouts im ERG-Modus oder Strecken mit simulierter Steigung fahren. Auswertung
@@ -34,6 +34,7 @@ Danach ist die App unter `https://<benutzer>.github.io/<repo>/` erreichbar.
 |---|---|
 | `index.html`, `style.css` | Oberfläche |
 | `js/shell.js` | Menüleiste, Wechsel zwischen den Bereichen |
+| `js/start.js` | Startseite mit Überblick über die Bereiche |
 | `js/training.js` | Trainingsbereich: Übersicht, Fahrt, Auswertung |
 | `js/trainer.js` | Bluetooth-Verbindung zum Trainer, Demo-Trainer |
 | `js/ftms.js` | Trainer-Protokoll (FTMS, Leistungsmesser, Puls) |

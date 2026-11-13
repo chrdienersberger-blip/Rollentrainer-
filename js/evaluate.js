@@ -30,6 +30,11 @@ export function statusOf(key, value, styleKey) {
   return rate(value, lo, hi, 5).status;
 }
 
+/** Zielbereich eines Winkels für das gewählte Sitzziel: [von, bis]. */
+export function rangeOf(key, styleKey) {
+  return key === 'kneeExt' ? KNEE_EXT : (STYLES[styleKey] ?? STYLES.sport)[key];
+}
+
 /** Nötige Sattelhöhen-Änderung (mm, auf 5 mm gerundet), um den Ziel-Kniewinkel zu erreichen. */
 function saddleDeltaMm(kneeDeg, targetDeg, { thighPx, shankPx, pxPerCm }) {
   const legLen = (a) =>

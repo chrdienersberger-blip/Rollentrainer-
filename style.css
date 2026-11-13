@@ -206,7 +206,7 @@ figcaption { color: var(--muted); font-size: .62rem; margin: 8px 20px 0; text-tr
 /* Menüleiste links */
 .rail { position: fixed; left: 0; top: 0; bottom: 0; width: 72px; z-index: 5; background: var(--ink); color: var(--bg);
   display: flex; flex-direction: column; align-items: stretch; padding: calc(10px + env(safe-area-inset-top)) 0 10px; }
-.raillogo { font-weight: 700; font-size: 1.1rem; text-align: center; padding: 6px 0 18px; letter-spacing: .1em; }
+.rail a.raillogo { display: block; font-weight: 700; font-size: 1.1rem; text-align: center; padding: 6px 0 18px; letter-spacing: .1em; color: var(--bg); border: 0; background: none; text-transform: none; }
 .rail a { display: flex; flex-direction: column; align-items: center; gap: 6px; padding: 14px 2px; color: #a39e94; text-decoration: none;
   font-size: .46rem; font-weight: 600; text-transform: uppercase; letter-spacing: .04em; text-align: center; border-left: 2px solid transparent; }
 .rail a svg { width: 22px; height: 22px; fill: none; stroke: currentColor; stroke-width: 1.5; stroke-linejoin: round; stroke-linecap: round; }
@@ -217,8 +217,8 @@ body.busy .rail { display: none; }
 body.busy .sec { margin-left: 0; }
 @media (min-width: 900px) {
   .rail { width: 210px; padding-top: 22px; }
-  .raillogo { text-align: left; padding: 4px 24px 26px; }
-  .raillogo::after { content: "ITZCHECK"; }
+  .rail a.raillogo { text-align: left; padding: 4px 24px 26px; font-size: 1.1rem; letter-spacing: .1em; }
+  .rail a.raillogo::after { content: "ITZCHECK"; }
   .rail a { flex-direction: row; gap: 14px; padding: 14px 22px; font-size: .68rem; letter-spacing: var(--caps); text-align: left; }
   .sec { margin-left: 210px; }
 }
@@ -280,3 +280,53 @@ button:disabled { opacity: .35; cursor: default; }
 .mtile:hover, .mtile:focus-visible { background: var(--ink); color: var(--bg); outline: 0; }
 .mtile:hover span, .mtile:focus-visible span { color: #bdb8ad; }
 @media (min-width: 620px) { .mgrid { grid-template-columns: repeat(3, 1fr); } }
+
+.clipnote { margin: 16px 0 0; }
+.anglecap { margin-top: 22px; }
+.angles { margin: 0 20px; }
+.arow { display: grid; grid-template-columns: minmax(0, 1fr) auto 58px; gap: 12px; align-items: center; padding: 9px 0; border-top: 1px solid var(--line); }
+.arow b { display: block; font-weight: 500; font-size: .95rem; }
+.arow small { color: var(--muted); font-size: .68rem; }
+.arow .badge { margin: 0; white-space: nowrap; font-size: .56rem; letter-spacing: .08em; }
+.aval { text-align: right; font-size: 1.5rem; letter-spacing: -.02em; font-variant-numeric: tabular-nums; }
+
+/* Startseite */
+.art { display: block; width: 100%; height: auto; }
+#start .hero .art { margin: 0; }
+#start .herotext h1 { font-size: clamp(2.2rem, 10.5vw, 3.4rem); }
+.btnlink { display: block; text-decoration: none; margin: 22px 0 0; }
+.chapter { display: block; color: var(--ink); text-decoration: none; margin: 0 -20px; border-top: 1px solid var(--ink); }
+.chbody { padding: 18px 20px 30px; }
+.chnum { font-size: .7rem; color: var(--faint); letter-spacing: .08em; }
+.chapter h2 { font-size: clamp(1.9rem, 9vw, 2.6rem); font-weight: 500; letter-spacing: -.03em; margin: 4px 0 10px; }
+.chapter p { color: var(--muted); margin: 0; }
+.chlink { display: inline-block; margin-top: 16px; font-size: .7rem; font-weight: 600; text-transform: uppercase; letter-spacing: var(--caps);
+  border-bottom: 1px solid var(--ink); padding-bottom: 3px; }
+.chapter:hover .chlink, .chapter:focus-visible .chlink { background: var(--ink); color: var(--bg); }
+.chapter:focus-visible { outline: 2px solid var(--ink); outline-offset: -2px; }
+.lastrow .stats { margin-top: 12px; }
+.lastrow a.stat { color: var(--ink); text-decoration: none; display: block; }
+@media (min-width: 620px) { .chapter { margin-left: 0; margin-right: 0; } }
+@media (min-width: 900px) {
+  #start.view { max-width: 980px; }
+  #start .hero { display: grid; grid-template-columns: 1.15fr 1fr; align-items: center; margin: 0; border-bottom: 1px solid var(--ink); }
+  .chapter { display: grid; grid-template-columns: 1fr 1fr; align-items: center; }
+  .chapter:nth-of-type(even) .art { order: 2; }
+}
+
+/* Schmale Bildschirme: neben der Menüleiste bleibt weniger Platz */
+.scorecard { grid-template-columns: 112px minmax(0, 1fr); gap: 18px; }
+.ring { width: 112px; height: 112px; }
+.ring .num b { font-size: 2.6rem; }
+.scorecard h1 { font-size: 1.25rem; overflow-wrap: anywhere; hyphens: auto; }
+.topcard h2 { overflow-wrap: anywhere; hyphens: auto; }
+@media (min-width: 620px) {
+  .scorecard { grid-template-columns: 132px minmax(0, 1fr); gap: 22px; }
+  .ring { width: 132px; height: 132px; }
+  .ring .num b { font-size: 3rem; }
+  .scorecard h1 { font-size: 1.5rem; }
+}
+.btnlink { font-size: .76rem; font-weight: 600; text-transform: uppercase; letter-spacing: var(--caps); text-align: center;
+  padding: 17px 16px; border: 1px solid var(--ink); }
+.badge.info { color: var(--muted); }
+.badge.info::before { border-radius: 50%; background: none; border: 1.5px solid currentColor; }

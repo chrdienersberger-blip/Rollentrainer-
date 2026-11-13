@@ -1,7 +1,7 @@
 // Trainingsbereich: Trainer verbinden, Workouts (ERG) und Strecken (Steigungssimulation) fahren.
 
-import { Trainer, bluetoothAvailable } from './trainer.js?v=9';
-import { WORKOUTS, ROUTES, workoutDuration, routeLength, routeClimb, targetAt, gradeAt, elevationAt, stepSpeed, summarize, toTcx } from './workouts.js?v=9';
+import { Trainer, bluetoothAvailable } from './trainer.js?v=10';
+import { WORKOUTS, ROUTES, workoutDuration, routeLength, routeClimb, targetAt, gradeAt, elevationAt, stepSpeed, summarize, toTcx } from './workouts.js?v=10';
 
 const PREFS_KEY = 'rollentrainer.training.v1', RIDES_KEY = 'rollentrainer.rides.v1';
 const SVGNS = 'http://www.w3.org/2000/svg';

@@ -1,10 +1,10 @@
-import { extractSide, coreVisibility, frameAngles, analyzeSession, pickSide } from './analysis.js?v=9';
-import { evaluate, stability, saddleFromInseam, STYLES } from './evaluate.js?v=9';
-import { BRANDS, CATEGORIES, findBike } from './bikes.js?v=9';
-import { syntheticSession } from './demo.js?v=9';
-import { putClip, getClip, pruneClips } from './clips.js?v=9';
-import { REGIONS, clipStatuses, share, frameAt, drawOutline } from './overlay.js?v=9';
-import { initHero } from './hero.js?v=9';
+import { extractSide, coreVisibility, frameAngles, analyzeSession, pickSide } from './analysis.js?v=10';
+import { evaluate, stability, saddleFromInseam, statusOf, rangeOf, STYLES } from './evaluate.js?v=10';
+import { BRANDS, CATEGORIES, findBike } from './bikes.js?v=10';
+import { syntheticSession } from './demo.js?v=10';
+import { putClip, getClip, pruneClips } from './clips.js?v=10';
+import { REGIONS, clipStatuses, share, frameAt, drawOutline, drawSkeleton as drawJoints } from './overlay.js?v=10';
+import { initHero } from './hero.js?v=10';
 
 const MP_VERSION = '0.10.14';
 const MP_BASE = `https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@${MP_VERSION}`;
@@ -393,12 +393,18 @@ async function finish() {
   stopMedia();
   if (mode === 'camera') say('Messung beendet.');
 
+  let liveClip = null;
   if (result.ok && blob) {
     const frames = clipFrames(samples, result.side ?? pickSide(samples), clip?.t0 ?? 0);
-    const id = `${record.date}-0`;
-    const saved = frames.length && await within(
-      putClip({ id, label: 'Deine Messung', blob, frames, w, h }).then(() => true, () => false), 4000);
-    if (saved) record.clips.push({ id, label: 'Deine Messung' });
+    if (frames.length) {
+      const id = `${record.date}-0`;
+      liveClip = { id, label: 'Deine Messung', blob, frames, w, h, saved: false };
+      banner('Video wird gespeichert …');
+      // ein hochgeladenes Video kann groß sein – dafür mehr Zeit lassen
+      liveClip.saved = !!(await within(putClip({ id, label: liveClip.label, blob, frames, w, h }).then(() => true, () => false),
+        mode === 'file' ? 60000 : 5000));
+      if (liveClip.saved) record.clips.push({ id, label: liveClip.label });
+    }
   }
 
   const previous = loadHistory()[0] ?? null;
@@ -408,7 +414,7 @@ async function finish() {
     // Videos nur für die vier neuesten Messungen behalten
     pruneClips(list.filter((r) => r.clips?.length).slice(0, 4).flatMap((r) => r.clips.map((c) => c.id))).catch(() => {});
   }
-  showRecord(record, { previous });
+  showRecord(record, { previous, liveClip });
 }
 
 /** Videoplayer mit halbtransparenter, nach Status eingefärbter Umrandung und Zeitleiste. */
@@ -430,7 +436,8 @@ function clipPlayer(clip, label, styleKey, cadence) {
   stage.append(vid, cv, playIcon);
   stage.style.aspectRatio = `${w} / ${h}`;
 
-  let outline = true, cur = -1;
+  let outline = true, joints = true, cur = -1;
+  let pinned = null; // im Pausenzustand gewähltes Einzelbild – unabhängig davon, wie genau das Video spult
   const rows = REGIONS.map((r) => {
     const row = el('div', 'tl');
     const name = el('div', 'tlname');
@@ -453,8 +460,10 @@ function clipPlayer(clip, label, styleKey, cadence) {
     bar.append(head);
     bar.onpointerdown = (e) => {
       const box = bar.getBoundingClientRect();
-      try { vid.currentTime = Math.max(0, Math.min(1, (e.clientX - box.left) / box.width)) * (dur / 1000); } catch { /* nicht spulbar */ }
-      render(vid.currentTime * 1000);
+      const t = Math.max(0, Math.min(1, (e.clientX - box.left) / box.width)) * dur;
+      try { vid.currentTime = t / 1000; } catch { /* nicht spulbar */ }
+      pinned = vid.paused ? frameAt(frames, t) : null;
+      render(t);
     };
     const sh = share(st[r.key]);
     row.append(name, bar, el('div', 'tlshare', `${Math.round(sh.ok * 100)} %`));
@@ -469,15 +478,26 @@ function clipPlayer(clip, label, styleKey, cadence) {
     cur = i;
     const now = { leg: st.leg[i], torso: st.torso[i], arm: st.arm[i] };
     if (outline) drawOutline(cx, frames[i], now, w, h); else cx.clearRect(0, 0, w, h);
+    if (joints) drawJoints(cx, frames[i], st.angles[i], w, h);
     for (const r of rows) r.state.textContent = now[r.key] ? STATUS_TEXT[now[r.key]] : 'nicht sichtbar';
+    const a = st.angles[i];
+    for (const r of readout) {
+      const v = !a ? null : r.key === 'kneeExt' ? st.kneeMax[i] : (r.arm && !frames[i].a) ? null : a[r.key];
+      r.val.textContent = v == null ? '–' : `${de(v, 0)}°`;
+      const s = v != null && r.rated ? statusOf(r.key, v, styleKey) : null;
+      r.badge.className = `badge ${s ?? 'info'}`;
+      r.badge.firstChild.textContent = s ? STATUS_TEXT[s] : r.rated ? '–' : 'ohne Zielwert';
+    }
   }
   const tick = (_, meta) => {
     if (!wrap.isConnected) { URL.revokeObjectURL(url); return; }
-    render((meta?.mediaTime ?? vid.currentTime) * 1000);
+    if (pinned != null && vid.paused) render(frames[pinned].t);
+    else { pinned = null; render((meta?.mediaTime ?? vid.currentTime) * 1000); }
     if (vid.requestVideoFrameCallback) vid.requestVideoFrameCallback(tick); else requestAnimationFrame(() => tick());
   };
   vid.addEventListener('loadeddata', () => { render(0); tick(); }, { once: true });
 
+  const redraw = () => { const i = Math.max(0, cur); cur = -1; render(frames[i].t); };
   const toggle = () => { if (vid.paused) vid.play().catch(() => {}); else vid.pause(); };
   stage.onclick = toggle;
   vid.onplay = () => { playIcon.hidden = true; playBtn.textContent = 'Pause'; };
@@ -491,12 +511,50 @@ function clipPlayer(clip, label, styleKey, cadence) {
   };
   const lineBtn = el('button', 'textbtn', 'Umrandung aus');
   lineBtn.onclick = () => {
-    outline = !outline; cur = -1;
+    outline = !outline;
     lineBtn.textContent = outline ? 'Umrandung aus' : 'Umrandung an';
-    render(vid.currentTime * 1000);
+    redraw();
   };
+  const jointBtn = el('button', 'textbtn', 'Gelenke aus');
+  jointBtn.onclick = () => {
+    joints = !joints;
+    jointBtn.textContent = joints ? 'Gelenke aus' : 'Gelenke an';
+    redraw();
+  };
+  // Einzelbild vor/zurück – zum genauen Hinsehen
+  const stepTo = (d) => {
+    vid.pause();
+    const i = Math.max(0, Math.min(frames.length - 1, (cur < 0 ? 0 : cur) + d));
+    pinned = i;
+    try { vid.currentTime = frames[i].t / 1000 + 0.001; } catch { /* nicht spulbar */ }
+    render(frames[i].t);
+  };
+  const backBtn = el('button', 'textbtn', '‹ Bild');
+  backBtn.onclick = () => stepTo(-1);
+  const fwdBtn = el('button', 'textbtn', 'Bild ›');
+  fwdBtn.onclick = () => stepTo(1);
   const controls = el('div', 'clipctl');
-  controls.append(playBtn, slowBtn, lineBtn);
+  controls.append(playBtn, backBtn, fwdBtn, slowBtn, lineBtn, jointBtn);
+
+  // Winkel im aktuellen Bild
+  const table = el('div', 'angles');
+  const rng = (key) => { const [lo, hi] = rangeOf(key, styleKey); return `Ziel ${lo}–${hi}°`; };
+  const readout = [
+    { key: 'kneeExt', label: 'Kniestreckung', sub: `größter Winkel dieser Umdrehung · ${rng('kneeExt')}`, rated: true },
+    { key: 'knee', label: 'Knie jetzt', sub: 'Winkel in diesem Bild', rated: false },
+    { key: 'torso', label: 'Oberkörper', sub: `Neigung zur Waagerechten · ${rng('torso')}`, rated: true },
+    { key: 'hip', label: 'Hüfte', sub: 'Oberkörper zu Oberschenkel', rated: false },
+    { key: 'shoulder', label: 'Schulter', sub: `Oberkörper zu Oberarm · ${rng('shoulder')}`, rated: true, arm: true },
+    { key: 'elbow', label: 'Ellbogen', sub: `Oberarm zu Unterarm · ${rng('elbow')}`, rated: true, arm: true },
+  ].map((r) => {
+    const row = el('div', 'arow'), left = el('div'), b = el('span', 'badge info');
+    b.append(el('span', null, '–'));
+    left.append(el('b', null, r.label), el('small', null, r.sub));
+    const val = el('div', 'aval', '–');
+    row.append(left, b, val);
+    table.append(row);
+    return { ...r, val, badge: b };
+  });
   const tl = el('div', 'tlwrap');
   const tlhead = el('div', 'tl tlcap');
   tlhead.append(el('div', 'tlname'), el('div', null, 'Verlauf im Video'), el('div', 'tlshare', 'im Ziel'));
@@ -504,7 +562,7 @@ function clipPlayer(clip, label, styleKey, cadence) {
   for (const [i, r] of rows.entries()) tl.append(r.head.parentElement.parentElement);
   const legend = el('div', 'legend');
   for (const k of ['ok', 'warn', 'bad']) { const b = badge(k); legend.append(b); }
-  wrap.append(el('div', 'clipcap', label), stage, controls, tl, legend);
+  wrap.append(el('div', 'clipcap', label), stage, controls, tl, legend, el('div', 'clipcap anglecap', 'Winkel im aktuellen Bild'), table);
   return wrap;
 }
 
@@ -688,7 +746,7 @@ function bikeOfRecord(rec) {
 }
 
 /** Zeigt eine Messung an – frisch gemessen oder aus dem Verlauf geöffnet. */
-function showRecord(rec, { previous = null, demo = false, stored = false } = {}) {
+function showRecord(rec, { previous = null, demo = false, stored = false, liveClip = null } = {}) {
   show('results');
   const body = $('resBody');
   body.replaceChildren();
@@ -716,18 +774,27 @@ function showRecord(rec, { previous = null, demo = false, stored = false } = {})
   for (const w of result.warnings ?? []) body.append(el('p', 'alert', w));
   const clipHost = el('div');
   body.append(clipHost);
-  if (rec.clips?.length) {
+  if (liveClip) {
+    // gerade gemessen: Video direkt aus dem Arbeitsspeicher zeigen
+    clipHost.append(clipPlayer(liveClip, liveClip.label, rec.style, result.cadence));
+    if (!liveClip.saved) clipHost.append(el('p', 'hint clipnote', 'Das Video ließ sich nicht dauerhaft speichern (zu groß oder Speicher voll). Es ist nur jetzt zu sehen – die Messwerte bleiben erhalten.'));
+  } else if (rec.clips?.length) {
     // Videos liegen in der Datenbank des Browsers und werden nachgeladen
     (async () => {
+      let shown = 0;
       for (const c of rec.clips) {
         const clip = await getClip(c.id);
         if (clip?.blob && clip.frames?.length && clipHost.isConnected) {
           clipHost.append(clipPlayer(clip, c.label, rec.style, result.cadence));
+          shown++;
         }
       }
+      if (!shown && clipHost.isConnected) clipHost.append(el('p', 'hint clipnote', 'Das Video dieser Messung ist nicht mehr gespeichert – es wird nur für die vier neuesten Messungen aufbewahrt.'));
     })();
+  } else if (stored && rec.result) {
+    clipHost.append(el('p', 'hint clipnote', 'Zu dieser Messung gibt es kein Video. Es wird erst seit Version 8 mit aufgezeichnet.'));
   }
-  if (rec.snapshot && !rec.clips?.length) {
+  if (rec.snapshot && !liveClip && !rec.clips?.length) {
     const fig = el('figure');
     const img = el('img');
     img.src = rec.snapshot;
