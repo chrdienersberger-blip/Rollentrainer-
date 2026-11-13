@@ -5,6 +5,12 @@ Das Handy steht seitlich neben dem Rad, die App erkennt die Gelenke (MediaPipe P
 misst die Winkel über viele Kurbelumdrehungen und gibt Empfehlungen zu Sattelhöhe,
 Sattelversatz, Lenkerhöhe und Sitzlänge.
 
+Zwei Messarten:
+
+- **Kurzcheck** (30–60 s): Gelenkwinkel mit Empfehlungen für Sattel und Cockpit.
+- **Ermüdungs-Check** (20–90 min): läuft während der ganzen Einheit mit, misst jede
+  Minute 20 Sekunden lang und zeigt, wie sich die Haltung mit der Ermüdung verändert.
+
 Das Video wird ausschließlich im Browser auf dem Gerät verarbeitet.
 
 ## Benutzen
@@ -25,9 +31,9 @@ Danach ist die App unter `https://<benutzer>.github.io/<repo>/` erreichbar.
 | `index.html`, `style.css` | Oberfläche |
 | `js/app.js` | Kamera, Pose-Erkennung, Ablauf, Anzeige |
 | `js/analysis.js` | Winkelberechnung, Erkennung der Tretzyklen |
+| `js/fatigue.js` | Ermüdungs-Check: Verlauf, Drift und Befunde über die Einheit |
 | `js/evaluate.js` | Zielbereiche je Sitzziel, Punktzahl und Empfehlungstexte |
 | `js/bikes.js` | Fahrradauswahl (Marke/Modell → Kategorie) |
-| `js/photos.js` | Fotos der Räder (eigenes Foto oder Wikimedia Commons) |
 | `js/hero.js` | Animierte Startgrafik (Fahrer und Rad-Silhouette je Typ) |
 | `js/demo.js` | Gelenkmodell für Startgrafik, Demo und Tests |
 

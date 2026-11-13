@@ -1,4 +1,4 @@
-// Animierte Startgrafik: Fahrer und Rad als stilisierte Seitenansicht.
+// Animierte Startgrafik: Fahrer und Rad als technische Zeichnung in der Seitenansicht.
 // Maße in cm, Ursprung = Tretlager, x nach vorn, y nach oben (Gruppe ist gespiegelt).
 // Die Räder sind Typ-Silhouetten (Aero, Allround, Endurance, Gravel, Zeitfahren),
 // keine maßstabsgetreuen Abbildungen einzelner Modelle.
@@ -20,11 +20,9 @@ const SPECS = {
   tt: { H1: [42, 49], H2: [45.5, 40], front: 58.5, stem: [8, 3], tyre: 2.4, rim: 9, disc: true, tube: { down: 5.2, seat: 4.8, top: 3, stay: 2, fork: 3.6 }, dropped: 30, bar: 'tt' },
 };
 
-const C = {
-  frame: '#171716', frameShade: '#34332f', tyre: '#1c1c1b', rim: '#3a3935', spoke: '#a39e94',
-  metal: '#77736b', dark: '#111110', skin: '#d9a888', shorts: '#4b4d40', jersey: '#a8553a',
-  sock: '#fbfaf7', shoe: '#fbfaf7', helmet: '#111110', glass: '#111110', paper: '#f3f1ec', ink: '#111110',
-};
+const INK = '#111110', PANEL = '#e4dfd5', GRID = '#d3cdc1', MID = '#77736b', ACCENT = '#a8553a';
+const BODY = '#a7a196', BODY_FAR = '#c4beb2';
+const FONT = 'Helvetica Neue, Helvetica, Arial, sans-serif';
 
 const svgEl = (tag, attrs = {}, parent) => {
   const e = document.createElementNS(SVGNS, tag);
@@ -45,84 +43,75 @@ function limb(a, b, w1, w2) {
 }
 
 function wheel(parent, cx, cy, spec, isRear) {
-  const g = svgEl('g', {}, parent);
-  const R = 34, rimR = R - spec.tyre / 2 - spec.rim / 2 - 0.3;
+  const g = svgEl('g', { fill: 'none', stroke: INK }, parent);
+  const R = 34, inner = R - spec.tyre, rim = inner - spec.rim;
   const spokes = svgEl('g', {}, g);
   if (spec.disc && isRear) {
-    svgEl('circle', { cx, cy, r: R - spec.tyre, fill: '#262624', stroke: C.rim, 'stroke-width': 0.6 }, g);
-    svgEl('line', { x1: cx - 8, y1: cy, x2: cx + 8, y2: cy, stroke: C.rim, 'stroke-width': 0.8 }, spokes);
+    svgEl('circle', { cx, cy, r: inner, fill: '#d6d0c4', 'stroke-width': 0.4 }, g);
+    svgEl('line', { x1: cx - 10, y1: cy, x2: cx + 10, y2: cy, 'stroke-width': 0.3 }, spokes);
   } else {
-    for (let i = 0; i < 9; i++) {
-      const a = (i * Math.PI) / 9, r = rimR;
-      svgEl('line', { x1: cx - r * Math.cos(a), y1: cy - r * Math.sin(a), x2: cx + r * Math.cos(a), y2: cy + r * Math.sin(a), stroke: C.spoke, 'stroke-width': 0.35 }, spokes);
+    for (let i = 0; i < 10; i++) {
+      const a = (i * Math.PI) / 10;
+      svgEl('line', { x1: cx - rim * Math.cos(a), y1: cy - rim * Math.sin(a), x2: cx + rim * Math.cos(a), y2: cy + rim * Math.sin(a), stroke: MID, 'stroke-width': 0.18 }, spokes);
     }
-    svgEl('circle', { cx, cy, r: rimR, fill: 'none', stroke: C.rim, 'stroke-width': spec.rim }, g);
+    svgEl('circle', { cx, cy, r: rim, 'stroke-width': 0.4 }, g);
+    svgEl('circle', { cx, cy, r: inner, 'stroke-width': 0.4 }, g);
   }
-  const tyre = svgEl('circle', { cx, cy, r: R - spec.tyre / 2, fill: 'none', stroke: C.tyre, 'stroke-width': spec.tyre }, g);
-  if (spec.knobs) {
-    svgEl('circle', { cx, cy, r: R + 0.3, fill: 'none', stroke: C.tyre, 'stroke-width': 1.4, 'stroke-dasharray': '1.6 1.6' }, spokes);
-  }
-  svgEl('circle', { cx, cy, r: 1.9, fill: C.metal }, g);
-  g.append(spokes, tyre);
+  svgEl('circle', { cx, cy, r: R, 'stroke-width': spec.knobs ? 1.1 : 0.7, ...(spec.knobs ? { 'stroke-dasharray': '1.4 1' } : {}) }, g);
+  svgEl('circle', { cx, cy, r: 1.6, fill: PANEL, 'stroke-width': 0.5 }, g);
   return { spokes, cx, cy };
 }
 
 /** Zeichnet das Rad neu (bei Wechsel des Modells). Liefert Griffpunkt und drehende Teile. */
-function buildBike(layer, textLayer, bike) {
+function buildBike(layer, bike) {
   layer.replaceChildren();
-  textLayer.replaceChildren();
   const spec = SPECS[bike.cat] ?? SPECS.allround;
   const t = spec.tube;
-  const line = (pts, stroke, w, extra = {}) =>
-    svgEl('polyline', { points: pts.map((p) => p.join(',')).join(' '), stroke, 'stroke-width': w, fill: 'none', ...extra }, layer);
   const seat = (len) => [-len * Math.cos((73 * Math.PI) / 180), len * Math.sin((73 * Math.PI) / 180)];
   const BB = [0, 0], S = seat(50), R = [REAR.x, REAR.y], F = [spec.front, 7];
-
   const wheels = [wheel(layer, R[0], R[1], spec, true), wheel(layer, F[0], F[1], spec, false)];
-  // Kette
-  line([[0, 9], [R[0], R[1] + 3.2]], C.dark, 0.7);
-  line([[0, -9], [R[0], R[1] - 3.2]], C.dark, 0.7);
-  svgEl('circle', { cx: R[0], cy: R[1], r: 3.4, fill: C.dark }, layer);
-  // Rahmen
-  line([R, BB], C.frameShade, t.stay + 0.6);
-  line([seat(spec.dropped), R], C.frameShade, t.stay);
-  line([seat(63.5), seat(48)], C.dark, spec.bar === 'tt' ? 3.4 : 2.2);       // Sattelstütze
-  line([BB, S], C.frame, t.seat);
-  line([S, spec.H1], C.frame, t.top);
-  line([BB, spec.H2], C.frame, t.down);
-  line([spec.H2, F], C.frameShade, t.fork);
-  line([spec.H1, spec.H2], C.frame, t.down * 0.9);
-  // Sattel
-  svgEl('path', { d: 'M-32,65.2 Q-31,62.6 -24,63 L-10,63.4 Q-6.5,63.6 -6.5,64.6 Q-14,65.6 -22,65.4 Q-28,66.6 -32,65.2 Z', fill: C.dark, stroke: C.dark, 'stroke-width': 0.5 }, layer);
+
+  // Rohre als Umrisszeichnung: erst alle Konturen, dann alle Füllungen – so verschmelzen die Knoten sauber
+  const outline = svgEl('g', { fill: 'none', stroke: INK }, layer);
+  const fill = svgEl('g', { fill: 'none', stroke: PANEL }, layer);
+  const tube = (pts, w) => {
+    const points = pts.map((p) => p.join(',')).join(' ');
+    svgEl('polyline', { points, 'stroke-width': w }, outline);
+    svgEl('polyline', { points, 'stroke-width': Math.max(0.2, w - 0.9) }, fill);
+  };
+  const pathTube = (d, w) => {
+    svgEl('path', { d, 'stroke-width': w }, outline);
+    svgEl('path', { d, 'stroke-width': Math.max(0.2, w - 0.9) }, fill);
+  };
+  tube([R, BB], t.stay + 0.5);
+  tube([seat(spec.dropped), R], t.stay + 0.2);
+  tube([seat(63.5), seat(48)], spec.bar === 'tt' ? 3 : 2.1);                 // Sattelstütze
+  tube([BB, S], t.seat);
+  tube([S, spec.H1], t.top);
+  tube([BB, spec.H2], t.down);
+  tube([spec.H2, F], t.fork);
+  tube([spec.H1, spec.H2], t.down * 0.9);
   // Cockpit
   const Cx = spec.H1[0] + spec.stem[0], Cy = spec.H1[1] + spec.stem[1];
-  line([[spec.H1[0] - 0.6, spec.H1[1] + 2], [Cx, Cy]], C.dark, 2.8);
+  tube([[spec.H1[0] - 0.6, spec.H1[1] + 2], [Cx, Cy]], 2.3);
   let grip;
   if (spec.bar === 'tt') {
     grip = { x: Cx + 27, y: Cy + 10 };
-    line([[Cx, Cy], [Cx + 9, Cy - 2.5]], C.dark, 2.4);
-    svgEl('path', { d: `M${Cx - 2},${Cy + 3.5} Q${Cx + 16},${Cy + 2.5} ${grip.x},${grip.y}`, stroke: C.metal, 'stroke-width': 1.7, fill: 'none' }, layer);
-    line([[Cx - 3, Cy + 5.2], [Cx + 6, Cy + 5.6]], C.dark, 2.6);
+    tube([[Cx, Cy], [Cx + 9, Cy - 2.5]], 2.1);
+    pathTube(`M${Cx - 2},${Cy + 3.5} Q${Cx + 16},${Cy + 2.5} ${grip.x},${grip.y}`, 1.7);
+    tube([[Cx - 3, Cy + 5.4], [Cx + 6, Cy + 5.8]], 2.3);
   } else {
     grip = { x: Cx + 9, y: Cy + 3 };
-    svgEl('path', {
-      d: `M${Cx},${Cy} L${grip.x},${grip.y} Q${grip.x + 3.5},${grip.y + 5} ${grip.x + 2},${grip.y + 0.5}` +
-        ` M${Cx + 5},${Cy + 1.2} Q${Cx + 15},${Cy - 1} ${Cx + 12},${Cy - 8} Q${Cx + 9},${Cy - 14} ${Cx + 1},${Cy - 12.5}`,
-      stroke: C.dark, 'stroke-width': 2.6, fill: 'none',
-    }, layer);
-    line([[grip.x + 2.4, grip.y + 1], [grip.x + 4.2, grip.y - 8]], C.metal, 0.9);
+    pathTube(`M${Cx},${Cy} L${grip.x},${grip.y} Q${grip.x + 3.5},${grip.y + 5} ${grip.x + 2},${grip.y + 0.5}`, 2.2);
+    pathTube(`M${Cx + 5},${Cy + 1.2} Q${Cx + 15},${Cy - 1} ${Cx + 12},${Cy - 8} Q${Cx + 9},${Cy - 14} ${Cx + 1},${Cy - 12.5}`, 2.2);
+    svgEl('line', { x1: grip.x + 2.4, y1: grip.y + 1, x2: grip.x + 4.2, y2: grip.y - 8, stroke: INK, 'stroke-width': 0.5 }, layer);
   }
-  // Modellname auf dem Unterrohr
-  if (!bike.generic) {
-    const ang = (Math.atan2(spec.H2[1], spec.H2[0]) * 180) / Math.PI;
-    const txt = svgEl('text', {
-      transform: `translate(${spec.H2[0] * 0.5},${-spec.H2[1] * 0.5}) rotate(${-ang})`,
-      'text-anchor': 'middle', 'dominant-baseline': 'central', fill: C.paper,
-      'font-size': Math.min(3.2, t.down * 0.74), 'font-weight': 800, 'letter-spacing': 0.5,
-      'font-family': 'system-ui, sans-serif',
-    }, textLayer);
-    txt.textContent = bike.name.split(' ').slice(1).join(' ').toUpperCase();
+  // Sattel, Kette
+  svgEl('path', { d: 'M-32,65.2 Q-31,62.6 -24,63 L-10,63.4 Q-6.5,63.6 -6.5,64.6 Q-14,65.6 -22,65.4 Q-28,66.6 -32,65.2 Z', fill: PANEL, stroke: INK, 'stroke-width': 0.5 }, layer);
+  for (const dy of [9, -9]) {
+    svgEl('line', { x1: 0, y1: dy, x2: R[0], y2: R[1] + dy * 0.36, stroke: INK, 'stroke-width': 0.3 }, layer);
   }
+  svgEl('circle', { cx: R[0], cy: R[1], r: 3.3, fill: PANEL, stroke: INK, 'stroke-width': 0.4 }, layer);
   const wrist = spec.bar === 'tt' ? { x: grip.x - 5, y: grip.y + 2 } : { x: grip.x - 7, y: grip.y + 3 };
   return { wheels, grip, wrist };
 }
@@ -133,50 +122,79 @@ function buildBike(layer, textLayer, bike) {
  */
 export function initHero(svg, getState, isVisible) {
   const root = svgEl('g', { transform: 'scale(1,-1)', 'stroke-linecap': 'round', 'stroke-linejoin': 'round' }, svg);
-  svgEl('ellipse', { cx: 9, cy: -27.5, rx: 78, ry: 2.2, fill: C.ink, opacity: 0.1 }, root);
-  svgEl('line', { x1: -88, x2: 108, y1: -27, y2: -27, stroke: '#bdb8ad', 'stroke-width': 0.4 }, root);
+  // Raster und Bodenlinie mit Maßteilung
+  const grid = svgEl('g', { stroke: GRID, 'stroke-width': 0.2 }, root);
+  for (let x = -80; x <= 100; x += 20) svgEl('line', { x1: x, x2: x, y1: -32, y2: 138 }, grid);
+  for (let y = -7; y <= 133; y += 20) svgEl('line', { x1: -88, x2: 108, y1: y, y2: y }, grid);
+  svgEl('line', { x1: -88, x2: 108, y1: -27, y2: -27, stroke: INK, 'stroke-width': 0.4 }, root);
+  for (let x = -80; x <= 100; x += 10) {
+    svgEl('line', { x1: x, x2: x, y1: -27, y2: x % 20 ? -28 : -29, stroke: INK, 'stroke-width': 0.25 }, root);
+  }
+  // Maßlinie Sattelhöhe (Tretlager bis Satteloberkante, parallel zum Sitzrohr)
+  const ca = Math.cos((73 * Math.PI) / 180), sa = Math.sin((73 * Math.PI) / 180), off = 13;
+  const d0 = { x: -off * sa, y: -off * ca }, d1 = { x: -66 * ca - off * sa, y: 66 * sa - off * ca };
+  const dim = svgEl('g', { stroke: MID, 'stroke-width': 0.3, fill: 'none' }, root);
+  svgEl('line', { x1: d0.x, y1: d0.y, x2: d1.x, y2: d1.y }, dim);
+  for (const p of [d0, d1]) svgEl('line', { x1: p.x - 2.2 * sa, y1: p.y - 2.2 * ca, x2: p.x + 2.2 * sa, y2: p.y + 2.2 * ca }, dim);
+  svgEl('line', { x1: 0, y1: 0, x2: d0.x, y2: d0.y, 'stroke-dasharray': '0.8 1.2' }, dim);
+  svgEl('line', { x1: -66 * ca, y1: 66 * sa, x2: d1.x, y2: d1.y, 'stroke-dasharray': '0.8 1.2' }, dim);
 
-  const part = (parent, fill, extra = {}) => svgEl('path', { fill, ...extra }, parent);
-  // Reihenfolge = Tiefe: hinteres Bein, Rad, vorderes Bein, Rumpf, Arm, Kopf
-  const far = svgEl('g', { opacity: 0.55 }, root);
-  const farCrank = svgEl('line', { stroke: C.metal, 'stroke-width': 2 }, far);
-  const fThigh = part(far, C.skin), fShorts = part(far, C.shorts), fShank = part(far, C.skin);
-  const fSock = part(far, C.sock), fShoe = part(far, C.shoe);
+  const part = (parent, fill) => svgEl('path', { fill }, parent);
+  // Reihenfolge = Tiefe: hinteres Bein, Rad, Körper, Messlinien
+  const farLeg = { thigh: part(root, BODY_FAR), shank: part(root, BODY_FAR), foot: part(root, BODY_FAR) };
+  const farCrank = svgEl('line', { stroke: INK, 'stroke-width': 0.9 }, root);
   const bikeLayer = svgEl('g', {}, root);
-  const ring = svgEl('circle', { cx: 0, cy: 0, r: 9.3, fill: '#262624', stroke: C.metal, 'stroke-width': 1.3 }, root);
-  const crank = svgEl('line', { stroke: C.metal, 'stroke-width': 2.2 }, root);
-  const pedal = svgEl('line', { stroke: C.dark, 'stroke-width': 1.8 }, root);
-  const shank = part(root, C.skin), sock = part(root, C.sock), shoe = part(root, C.shoe);
-  const sole = svgEl('line', { stroke: C.dark, 'stroke-width': 1.1 }, root);
-  const thigh = part(root, C.skin), shorts = part(root, C.shorts);
-  const torso = part(root, C.jersey);
-  const hipCap = svgEl('circle', { r: 7.8, fill: C.shorts }, root);
-  const neck = part(root, C.skin);
-  const head = svgEl('circle', { r: 6.6, fill: C.skin }, root);
-  const helmet = part(root, C.helmet, { stroke: C.dark, 'stroke-width': 0.4 });
-  const glasses = svgEl('line', { stroke: C.glass, 'stroke-width': 2.1 }, root);
-  const upperArm = part(root, C.skin), sleeve = part(root, C.jersey);
-  const forearm = part(root, C.skin), hand = part(root, C.glass);
-  // Mess-Overlay
-  const arc = svgEl('path', { stroke: C.ink, 'stroke-width': 0.5, 'stroke-dasharray': '1 1.6', fill: 'none' }, root);
-  const joints = ['shoulder', 'elbow', 'hip', 'knee', 'ankle'].map((k) =>
-    [k, svgEl('circle', { r: 1.7, fill: C.paper, stroke: C.ink, 'stroke-width': 0.8 }, root)]);
-  const textLayer = svgEl('g', {}, svg);
-  const label = svgEl('text', { fill: C.ink, stroke: '#e4dfd5', 'stroke-width': 2.4, 'paint-order': 'stroke', 'stroke-linejoin': 'round', 'font-size': 9, 'font-weight': 500, 'letter-spacing': -0.3, 'font-family': 'Helvetica Neue, Helvetica, Arial, sans-serif' }, svg);
-  const sub = svgEl('text', { fill: '#55524c', stroke: '#e4dfd5', 'stroke-width': 1.6, 'paint-order': 'stroke', 'stroke-linejoin': 'round', 'font-size': 3.2, 'letter-spacing': 0.5, 'font-family': 'Helvetica Neue, Helvetica, Arial, sans-serif' }, svg);
-  sub.textContent = 'KNIEWINKEL';
+  svgEl('circle', { cx: 0, cy: 0, r: 9.3, fill: PANEL, stroke: INK, 'stroke-width': 0.5 }, root);
+  svgEl('circle', { cx: 0, cy: 0, r: 7.6, fill: 'none', stroke: INK, 'stroke-width': 0.25 }, root);
+  const crank = svgEl('line', { stroke: INK, 'stroke-width': 1.5 }, root);
+  const pedal = svgEl('line', { stroke: INK, 'stroke-width': 1.3 }, root);
+  const bodyG = svgEl('g', { opacity: 0.92 }, root);
+  const nearLeg = { thigh: part(bodyG, BODY), shank: part(bodyG, BODY), foot: part(bodyG, BODY) };
+  const torso = part(bodyG, BODY), neck = part(bodyG, BODY);
+  const head = svgEl('circle', { r: 6.8, fill: BODY }, bodyG);
+  const upperArm = part(bodyG, BODY), forearm = part(bodyG, BODY), hand = part(bodyG, BODY);
+  // Messlinien
+  const bones = svgEl('polyline', { fill: 'none', stroke: INK, 'stroke-width': 0.55 }, root);
+  const arcs = ['knee', 'hip', 'elbow'].map((k) => [k, svgEl('path', { stroke: ACCENT, 'stroke-width': 0.6, fill: 'none' }, root)]);
+  const joints = ['wrist', 'elbow', 'shoulder', 'hip', 'knee', 'ankle'].map((k) =>
+    [k, svgEl('circle', { r: 1.5, fill: '#f3f1ec', stroke: INK, 'stroke-width': 0.6 }, root)]);
+
+  // Beschriftung (ungespiegelt)
+  const halo = { stroke: PANEL, 'stroke-width': 2.2, 'paint-order': 'stroke', 'stroke-linejoin': 'round', 'font-family': FONT };
+  const mkLabel = (title) => {
+    const g = svgEl('g', {}, svg);
+    const val = svgEl('text', { ...halo, fill: INK, 'font-size': 7, 'font-weight': 500, 'letter-spacing': -0.2 }, g);
+    const cap = svgEl('text', { ...halo, 'stroke-width': 1.6, fill: MID, 'font-size': 2.9, 'letter-spacing': 0.5, y: 4.2 }, g);
+    cap.textContent = title;
+    return { g, val };
+  };
+  const labels = { knee: mkLabel('KNIE'), hip: mkLabel('HÜFTE'), elbow: mkLabel('ELLBOGEN') };
+  const dimText = svgEl('text', { ...halo, 'stroke-width': 1.6, fill: MID, 'font-size': 2.9, 'letter-spacing': 0.5, 'text-anchor': 'middle',
+    transform: `translate(${f1((d0.x + d1.x) / 2 - 2.6)},${f1(-(d0.y + d1.y) / 2)}) rotate(-73)` }, svg);
+  dimText.textContent = 'SATTELHÖHE';
 
   let bikeKey = null, bikeParts = null;
   const cur = { torso: TORSO[getState().style] ?? 44, wrist: null };
   const reduced = matchMedia('(prefers-reduced-motion: reduce)').matches;
+  const setLine = (n, a, b) => { n.setAttribute('x1', f1(a.x)); n.setAttribute('y1', f1(a.y)); n.setAttribute('x2', f1(b.x)); n.setAttribute('y2', f1(b.y)); };
 
   function leg(p, els) {
-    els.thigh.setAttribute('d', limb(p.hip, p.knee, 12.5, 9.2));
-    els.shorts.setAttribute('d', limb(p.hip, lerpP(p.hip, p.knee, 0.62), 13.2, 11.2));
-    els.shank.setAttribute('d', limb(p.knee, p.ankle, 8.8, 5.2));
-    els.sock.setAttribute('d', limb(lerpP(p.knee, p.ankle, 0.8), p.ankle, 5.8, 5.4));
+    els.thigh.setAttribute('d', limb(p.hip, p.knee, 12.5, 9));
+    els.shank.setAttribute('d', limb(p.knee, p.ankle, 8.6, 5));
     const back = { x: p.heel.x + 1, y: p.heel.y + 1.5 }, tip = { x: p.toe.x + 1.5, y: p.toe.y + 1.2 };
-    els.shoe.setAttribute('d', `${limb(back, tip, 6.4, 3.6)} ${limb(p.ankle, lerpP(back, tip, 0.35), 5.6, 5.6)}`);
+    els.foot.setAttribute('d', `${limb(back, tip, 6, 3.4)} ${limb(p.ankle, lerpP(back, tip, 0.35), 5.2, 5.2)}`);
+  }
+
+  /** Winkelbogen und Wert am Gelenk b zwischen den Schenkeln nach a und c. */
+  function mark(name, a, b, c, r, dx, dy) {
+    const a1 = Math.atan2(a.y - b.y, a.x - b.x), a2 = Math.atan2(c.y - b.y, c.x - b.x);
+    let sweep = a2 - a1;
+    while (sweep > Math.PI) sweep -= 2 * Math.PI;
+    while (sweep < -Math.PI) sweep += 2 * Math.PI;
+    const pt = (t) => `${f1(b.x + r * Math.cos(t))},${f1(b.y + r * Math.sin(t))}`;
+    arcs.find(([k]) => k === name)[1].setAttribute('d', `M${pt(a1)} A${r},${r} 0 0 ${sweep > 0 ? 1 : 0} ${pt(a2)}`);
+    labels[name].val.textContent = `${Math.round(angleAt(a, b, c))}°`;
+    labels[name].g.setAttribute('transform', `translate(${f1(b.x + dx)},${f1(-b.y + dy)})`);
   }
 
   function draw(th) {
@@ -184,7 +202,7 @@ export function initHero(svg, getState, isVisible) {
     const key = `${bike.name}|${bike.cat}`;
     if (key !== bikeKey) {
       bikeKey = key;
-      bikeParts = buildBike(bikeLayer, textLayer, bike);
+      bikeParts = buildBike(bikeLayer, bike);
       cur.wrist ??= { ...bikeParts.wrist };
     }
     const k = reduced ? 1 : 0.09;
@@ -199,62 +217,42 @@ export function initHero(svg, getState, isVisible) {
     const opts = { torsoDeg, wristOffset: { x: cur.wrist.x - HIP.x, y: cur.wrist.y - HIP.y } };
     const p = riderPose(th, opts), q = riderPose(th + Math.PI, opts);
 
-    // Antrieb
     const deg = (-th * 2.7 * 180) / Math.PI;
     for (const w of bikeParts.wheels) w.spokes.setAttribute('transform', `rotate(${f1(deg % 360)} ${w.cx} ${w.cy})`);
-    const setLine = (n, a, b) => { n.setAttribute('x1', f1(a.x)); n.setAttribute('y1', f1(a.y)); n.setAttribute('x2', f1(b.x)); n.setAttribute('y2', f1(b.y)); };
     setLine(farCrank, { x: 0, y: 0 }, q.spindle);
     setLine(crank, { x: 0, y: 0 }, p.spindle);
     setLine(pedal, { x: p.spindle.x - 4, y: p.spindle.y - 1.4 }, { x: p.spindle.x + 4, y: p.spindle.y - 1.8 });
-    setLine(sole, { x: p.heel.x + 1, y: p.heel.y - 1.4 }, { x: p.toe.x + 1, y: p.toe.y - 0.6 });
-
-    // Beine
-    leg(q, { thigh: fThigh, shorts: fShorts, shank: fShank, sock: fSock, shoe: fShoe });
-    leg(p, { thigh, shorts, shank, sock, shoe });
-    hipCap.setAttribute('cx', f1(p.hip.x - 1)); hipCap.setAttribute('cy', f1(p.hip.y - 0.5));
+    leg(q, farLeg);
+    leg(p, nearLeg);
 
     // Rumpf mit leicht gerundetem Rücken
     const tr = (torsoDeg * Math.PI) / 180, ux = Math.cos(tr), uy = Math.sin(tr), nx = -uy, ny = ux;
     const at = (base, along, off) => `${f1(base.x + ux * along + nx * off)},${f1(base.y + uy * along + ny * off)}`;
     const midB = { x: (p.hip.x + p.shoulder.x) / 2, y: (p.hip.y + p.shoulder.y) / 2 };
     torso.setAttribute('d',
-      `M${at(p.hip, -4, 8.6)} Q${at(midB, 0, 13.5)} ${at(p.shoulder, 2, 6.2)} ` +
-      `Q${at(p.shoulder, 6.5, 0)} ${at(p.shoulder, 1, -7)} Q${at(midB, 2, -10.5)} ${at(p.hip, 1, -8.4)} ` +
-      `Q${at(p.hip, -9, -2)} ${at(p.hip, -4, 8.6)} Z`);
-
-    // Kopf: Blick nach vorn, Nacken umso stärker überstreckt, je flacher der Rücken
+      `M${at(p.hip, -5, 7.5)} Q${at(midB, 0, 12.5)} ${at(p.shoulder, 2, 6)} ` +
+      `Q${at(p.shoulder, 6.5, 0)} ${at(p.shoulder, 1, -6.6)} Q${at(midB, 2, -9.5)} ${at(p.hip, 2, -8)} ` +
+      `Q${at(p.hip, -9.5, -4)} ${at(p.hip, -5, 7.5)} Z`);
     const na = (Math.max(torsoDeg + 22, 50) * Math.PI) / 180;
     const base = { x: p.shoulder.x + ux * 2, y: p.shoulder.y + uy * 2 };
     const hc = { x: base.x + 12.5 * Math.cos(na), y: base.y + 12.5 * Math.sin(na) };
-    neck.setAttribute('d', limb(base, hc, 6.4, 5.4));
+    neck.setAttribute('d', limb(base, hc, 6.2, 5.2));
     head.setAttribute('cx', f1(hc.x)); head.setAttribute('cy', f1(hc.y));
-    const tilt = torsoDeg * 0.35 - 22; // Neigung des Helms
-    helmet.setAttribute('d', 'M-8.6,-0.4 Q-9.6,6.6 -1,7.8 Q7.2,8.4 8.6,1.6 Q4,0.6 0.5,1.2 Q-4,2 -8.6,-0.4 Z');
-    helmet.setAttribute('transform', `translate(${f1(hc.x)},${f1(hc.y + 1.2)}) rotate(${f1(tilt)})`);
-    const ta = (tilt * Math.PI) / 180;
-    const gp = (dx, dy) => ({ x: hc.x + dx * Math.cos(ta) - dy * Math.sin(ta), y: hc.y + dx * Math.sin(ta) + dy * Math.cos(ta) });
-    setLine(glasses, gp(3.4, -0.4), gp(6.4, -0.2));
+    upperArm.setAttribute('d', limb(p.shoulder, p.elbow, 7.2, 5.6));
+    forearm.setAttribute('d', limb(p.elbow, p.wrist, 5.6, 4.2));
+    hand.setAttribute('d', limb(p.wrist, { x: p.wrist.x + (bikeParts.grip.x - bikeParts.wrist.x), y: p.wrist.y + (bikeParts.grip.y - bikeParts.wrist.y) }, 4.4, 3.8));
 
-    // Arm
-    upperArm.setAttribute('d', limb(p.shoulder, p.elbow, 7.4, 5.8));
-    sleeve.setAttribute('d', limb(p.shoulder, lerpP(p.shoulder, p.elbow, 0.42), 8.6, 7.4));
-    forearm.setAttribute('d', limb(p.elbow, p.wrist, 5.8, 4.4));
-    hand.setAttribute('d', limb(p.wrist, { x: p.wrist.x + (bikeParts.grip.x - bikeParts.wrist.x), y: p.wrist.y + (bikeParts.grip.y - bikeParts.wrist.y) }, 4.6, 4));
-
-    // Mess-Overlay
+    // Messlinien und Winkel
+    bones.setAttribute('points', [p.wrist, p.elbow, p.shoulder, p.hip, p.knee, p.ankle].map((v) => `${f1(v.x)},${f1(v.y)}`).join(' '));
     for (const [name, c] of joints) { c.setAttribute('cx', f1(p[name].x)); c.setAttribute('cy', f1(p[name].y)); }
-    const a1 = Math.atan2(p.hip.y - p.knee.y, p.hip.x - p.knee.x);
-    const a2 = Math.atan2(p.ankle.y - p.knee.y, p.ankle.x - p.knee.x);
-    const r = 10, pt = (a) => `${f1(p.knee.x + r * Math.cos(a))},${f1(p.knee.y + r * Math.sin(a))}`;
-    arc.setAttribute('d', `M${pt(a1)} A${r},${r} 0 0 0 ${pt(a2)}`);
-    label.textContent = `${Math.round(angleAt(p.hip, p.knee, p.ankle))}°`;
-    label.setAttribute('x', f1(p.knee.x + 10)); label.setAttribute('y', f1(-p.knee.y - 1));
-    sub.setAttribute('x', f1(p.knee.x + 10)); sub.setAttribute('y', f1(-p.knee.y + 5));
+    mark('knee', p.hip, p.knee, p.ankle, 9, 11, 1);
+    mark('hip', p.shoulder, p.hip, p.knee, 11, -27, -4);
+    mark('elbow', p.shoulder, p.elbow, p.wrist, 7, 4, 12);
   }
 
   if (reduced) { draw(2.2); setInterval(() => isVisible() && draw(2.2), 300); return; }
   const tick = (t) => {
-    if (isVisible()) draw((t / 1000) * 2 * Math.PI * (62 / 60));
+    if (isVisible()) draw((t / 1000) * 2 * Math.PI * (55 / 60));
     requestAnimationFrame(tick);
   };
   requestAnimationFrame(tick);

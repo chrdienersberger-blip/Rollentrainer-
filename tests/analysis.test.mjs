@@ -3,7 +3,8 @@ import assert from 'node:assert/strict';
 import { angleAt, analyzeSession } from '../js/analysis.js';
 import { evaluate, saddleFromInseam } from '../js/evaluate.js';
 import { findBike, BRANDS, CATEGORIES } from '../js/bikes.js';
-import { syntheticSession } from '../js/demo.js';
+import { syntheticSession, syntheticFatigueWindows } from '../js/demo.js';
+import { summarizeFatigue, windowFromResult } from '../js/fatigue.js';
 
 // Erwartete maximale Kniestreckung des Gelenkmodells direkt aus der Geometrie
 function expectedKneeExt(saddleHeight, thigh = 42, shank = 43, crank = 17.25) {
@@ -84,4 +85,31 @@ test('Kniekurve beginnt am oberen Totpunkt, Sattelhöhe aus Schrittlänge', () =
   assert.ok(r.extras.hipBob < 1);
   assert.equal(saddleFromInseam(85), 75.1);
   assert.equal(saddleFromInseam(0), null);
+});
+
+test('Ermüdungs-Check: stabiler Verlauf ohne Befund, Drift wird erkannt und datiert', () => {
+  const stable = Array.from({ length: 20 }, (_, i) => ({ minute: i + 1, ok: true, torso: 42 + (i % 2) * 0.4, kneeExt: 145, hipBob: 1, elbow: 155, cadence: 90 }));
+  const s = summarizeFatigue(stable);
+  assert.ok(s.ok);
+  assert.equal(s.findings.length, 0);
+  assert.ok(s.score >= 95, `Score ${s.score}`);
+
+  const f = summarizeFatigue(syntheticFatigueWindows(40));
+  assert.ok(f.ok);
+  assert.ok(f.score < 70, `Score ${f.score}`);
+  const torso = f.findings.find((x) => x.key === 'torso');
+  assert.match(torso.title, /richtet sich auf/);
+  assert.ok(torso.drift > 4);
+  assert.ok(torso.onset >= 20 && torso.onset <= 36, `Beginn ${torso.onset}`);
+  assert.match(f.findings.find((x) => x.key === 'kneeExt').title, /weniger/);
+  assert.ok(f.findings.find((x) => x.key === 'hipBob'));
+  assert.equal(f.validMinutes, 39);
+});
+
+test('Ermüdungs-Check: zu wenige Minuten, Fenster aus Messergebnis', () => {
+  assert.equal(summarizeFatigue(syntheticFatigueWindows(4)).ok, false);
+  const w = windowFromResult(3, analyzeSession(syntheticSession()));
+  assert.equal(w.minute, 3);
+  assert.ok(w.ok && w.torso > 40 && w.cadence > 80 && w.hipBob >= 0);
+  assert.equal(windowFromResult(4, { ok: false }).ok, false);
 });

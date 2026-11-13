@@ -157,11 +157,6 @@ figcaption { color: var(--muted); font-size: .62rem; margin: 8px 20px 0; text-tr
 .info b { display: block; font-weight: 500; font-size: 1.02rem; }
 .info p { margin: 4px 0 0; color: var(--muted); font-size: .88rem; }
 
-.hero figure { margin: 0; }
-#heroImg { display: block; width: 100%; aspect-ratio: 196 / 170; object-fit: cover; background: var(--panel); }
-#heroCredit { margin: 8px 20px 0; }
-#heroCredit a { color: inherit; }
-.photobar { display: flex; flex-wrap: wrap; gap: 4px 18px; margin: 8px 20px 0; }
 .textbtn { width: auto; display: inline-block; border: 0; padding: 6px 0; margin: 0; background: none; cursor: pointer;
   font-size: .66rem; font-weight: 600; color: var(--ink); text-transform: uppercase; letter-spacing: var(--caps);
   text-decoration: underline; text-underline-offset: 4px; }
@@ -182,3 +177,12 @@ figcaption { color: var(--muted); font-size: .62rem; margin: 8px 20px 0; text-tr
   .seg4 { grid-template-columns: repeat(4, 1fr); }
   .hero, figure, .topcard { margin-left: 0; margin-right: 0; }
 }
+
+/* Ermüdungs-Check */
+.trend { padding: 16px 0 10px; }
+.trendhead { display: flex; justify-content: space-between; align-items: baseline; }
+.trendhead span { font-size: 1.15rem; font-variant-numeric: tabular-nums; letter-spacing: -.02em; }
+.trend .chartwrap { margin-top: 6px; }
+.scorecard .eyebrow { color: var(--muted); margin-bottom: 6px; }
+.badge.info { color: var(--muted); }
+.badge.info::before { border-radius: 50%; background: none; border: 1.5px solid currentColor; }
