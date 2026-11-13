@@ -1,6 +1,6 @@
 // Verbindung zum Smart Trainer per Web Bluetooth (FTMS), mit Demo-Trainer zum Ausprobieren.
 
-import { UUID, parseIndoorBikeData, parseCyclingPower, parseHeartRate, cmdRequestControl, cmdStart, cmdTargetPower, cmdSimulation } from './ftms.js?v=11';
+import { UUID, parseIndoorBikeData, parseCyclingPower, parseHeartRate, cmdRequestControl, cmdStart, cmdTargetPower, cmdSimulation } from './ftms.js?v=12';
 
 export const bluetoothAvailable = () => !!navigator.bluetooth;
 

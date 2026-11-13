@@ -37,7 +37,7 @@ const GROUPS = [
   ] },
 ];
 
-import { BRANDS, CATEGORIES } from './bikes.js?v=11';
+import { BRANDS, CATEGORIES } from './bikes.js?v=12';
 
 const STARTER_KEY = 'rollentrainer.starter.v1';
 const DOMAIN = { Canyon: 'canyon.com', 'Cervélo': 'cervelo.com', Specialized: 'specialized.com', Trek: 'trekbikes.com', Giant: 'giant-bicycles.com',

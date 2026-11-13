@@ -391,3 +391,19 @@ body.busy .railtoggle { display: none; }
 .check small { display: block; color: var(--muted); font-size: .84rem; margin-top: 2px; }
 .check:has(input:checked) b { color: var(--muted); text-decoration: line-through; }
 .dirhead { margin: 26px 0 0; padding-top: 20px; border-top: 1px solid var(--line); }
+
+/* Menü-Knopf gut sichtbar oben: in der Leiste „‹ Menü“, bei ausgeblendeter Leiste „☰“ */
+.railtoggle { left: 0; top: env(safe-area-inset-top); bottom: auto; width: 72px; height: 40px; font-size: .5rem; font-weight: 600;
+  text-transform: uppercase; letter-spacing: .08em; border-bottom: 1px solid #ffffff22; }
+.rail { padding-top: calc(48px + env(safe-area-inset-top)); }
+body.norail .railtoggle { width: 44px; height: 44px; font-size: 1.1rem; border: 0; }
+body.norail .brand { padding-left: 54px; min-height: 44px; align-items: center; }
+body.norail .ridetop { padding-left: 54px; }
+@media (min-width: 900px) {
+  .railtoggle { left: 0; width: 210px; text-align: left; padding-left: 24px; font-size: .62rem; letter-spacing: var(--caps); }
+  .rail { padding-top: 62px; }
+}
+.livetiles { grid-template-columns: repeat(3, 1fr); border-top: 1px solid var(--ink); margin-bottom: 16px; }
+.livetiles .rt:nth-child(3) { border-left: 1px solid var(--line); padding-left: 12px; }
+.livetiles .rt b { font-size: 2rem; }
+.livetiles .rt small, .ridetiles .rt small { font-size: .5rem; letter-spacing: .06em; }

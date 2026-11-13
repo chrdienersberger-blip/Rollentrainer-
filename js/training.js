@@ -1,7 +1,7 @@
 // Trainingsbereich: Trainer verbinden, Workouts (ERG) und Strecken (Steigungssimulation) fahren.
 
-import { Trainer, bluetoothAvailable } from './trainer.js?v=11';
-import { WORKOUTS, ROUTES, workoutDuration, routeLength, routeClimb, targetAt, gradeAt, elevationAt, stepSpeed, summarize, toTcx, PLAN, planItem, prepFor } from './workouts.js?v=11';
+import { Trainer, bluetoothAvailable } from './trainer.js?v=12';
+import { WORKOUTS, ROUTES, workoutDuration, routeLength, routeClimb, targetAt, gradeAt, elevationAt, stepSpeed, summarize, toTcx, PLAN, planItem, prepFor } from './workouts.js?v=12';
 
 const PREFS_KEY = 'rollentrainer.training.v1', RIDES_KEY = 'rollentrainer.rides.v1';
 const SVGNS = 'http://www.w3.org/2000/svg';
@@ -46,6 +46,7 @@ export function initTraining(root) {
       liveHook?.();
     } else {
       statusHook?.();
+      liveHook?.();
     }
   });
   const power3s = () => (recent.length ? Math.round(recent.reduce((a, b) => a + b, 0) / recent.length) : 0);
@@ -111,7 +112,22 @@ export function initTraining(root) {
     const step = el('div', 'step');
     step.append(el('span', null, '1'), el('h2', null, 'Dein Trainer'));
     const status = el('div', 'devstatus'), btns = el('div', 'row wrap'), hint = el('p', 'hint');
-    dev.append(step, status, btns, hint);
+    // Live-Werte, sobald ein Gerät verbunden ist – auch ohne laufende Einheit
+    const live = el('div', 'ridetiles livetiles');
+    const liveVal = {};
+    for (const [key, label] of [['power', 'Watt'], ['cadence', 'Trittfrequenz'], ['hr', 'Herzfrequenz']]) {
+      const t = el('div', 'rt'), v = el('b', null, '–');
+      t.append(v, el('small', null, label));
+      live.append(t);
+      liveVal[key] = v;
+    }
+    liveHook = () => {
+      const d = trainer.data;
+      liveVal.power.textContent = trainer.connected ? de(power3s()) : '–';
+      liveVal.cadence.textContent = trainer.connected && d.cadence ? de(d.cadence) : '–';
+      liveVal.hr.textContent = d.hr ? de(d.hr) : '–';
+    };
+    dev.append(step, status, live, btns, hint);
     root.append(dev);
     const run = async (fn) => {
       hint.textContent = '';
@@ -127,7 +143,9 @@ export function initTraining(root) {
         el('small', null, !trainer.connected ? 'Kickr, Tacx, Elite und andere Trainer mit Bluetooth (FTMS)'
           : trainer.controllable ? 'Widerstand wird automatisch gesteuert' : 'Liefert nur Messwerte – Widerstand von Hand einstellen'));
       status.append(dot, txt);
-      if (trainer.hrName) status.append(el('small', 'hrname', `Puls: ${trainer.hrName}`));
+      if (trainer.hrName) status.append(el('small', 'hrname', `Herzfrequenz: ${trainer.hrName}`));
+      live.hidden = !trainer.connected && !trainer.hrName;
+      liveHook?.();
       btns.replaceChildren();
       const b = (label, cls, fn) => { const x = el('button', cls, label); x.type = 'button'; x.onclick = fn; btns.append(x); return x; };
       if (trainer.connected) {
@@ -137,9 +155,12 @@ export function initTraining(root) {
         c.disabled = !bluetoothAvailable();
         b('Demo-Trainer', 'secondary', () => trainer.connectDemo());
       }
-      if (bluetoothAvailable() && !trainer.hrName) b('Pulsgurt verbinden', 'secondary', () => run(() => trainer.connectHeartRate()));
+      if (!trainer.hrName) {
+        const h = b('Herzfrequenz-Sensor verbinden', 'secondary', () => run(() => trainer.connectHeartRate()));
+        h.disabled = !bluetoothAvailable();
+      }
       if (!bluetoothAvailable()) {
-        hint.textContent = 'Dieser Browser kann keine Bluetooth-Geräte ansprechen. Das geht mit Chrome oder Edge auf Android, Windows und Mac. Auf iPhone und iPad unterstützt Safari kein Web-Bluetooth – dort braucht es einen Browser mit dieser Funktion (z. B. Bluefy). Zum Ausprobieren gibt es den Demo-Trainer.';
+        hint.textContent = 'Dieser Browser kann keine Bluetooth-Geräte ansprechen. Das geht mit Chrome oder Edge auf Android, Windows und Mac. Auf iPhone und iPad funktioniert es weder in Safari noch in Chrome, weil dort alle Browser dieselbe Technik ohne Web-Bluetooth nutzen – es braucht einen Spezial-Browser mit dieser Funktion (z. B. Bluefy). Zum Ausprobieren gibt es den Demo-Trainer.';
       }
       for (const s of root.querySelectorAll('.wkstart')) s.disabled = !trainer.connected;
       startHint.hidden = trainer.connected;
@@ -301,7 +322,7 @@ export function initTraining(root) {
       return v;
     };
     const vPower = tile('Watt', 'main'), vTarget = tile(kind === 'workout' ? 'Ziel' : 'Steigung', 'main');
-    const vCad = tile('U/min'), vHr = tile('Puls'), vSpeed = tile('km/h'), vDist = tile('km');
+    const vCad = tile('Trittfrequenz'), vHr = tile('Herzfrequenz'), vSpeed = tile('km/h'), vDist = tile('km');
 
     const chart = el('div', 'ridechart');
     const pf = profile(kind, def, { H: 130, big: true });
