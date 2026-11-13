@@ -1,7 +1,8 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { angleAt, analyzeSession } from '../js/analysis.js';
-import { evaluate, saddleFromInseam } from '../js/evaluate.js';
+import { evaluate, saddleFromInseam, statusOf } from '../js/evaluate.js';
+import { clipStatuses, share, frameAt } from '../js/overlay.js';
 import { findBike, BRANDS, CATEGORIES } from '../js/bikes.js';
 import { syntheticSession, syntheticFatigueWindows } from '../js/demo.js';
 import { summarizeFatigue, windowFromResult } from '../js/fatigue.js';
@@ -112,4 +113,27 @@ test('Ermüdungs-Check: zu wenige Minuten, Fenster aus Messergebnis', () => {
   assert.equal(w.minute, 3);
   assert.ok(w.ok && w.torso > 40 && w.cadence > 80 && w.hipBob >= 0);
   assert.equal(windowFromResult(4, { ok: false }).ok, false);
+});
+
+test('Video-Umrandung: Status je Bild und Bereich', () => {
+  const toFrames = (samples) => samples.map((s) => ({
+    t: Math.round(s.t), a: 1, c: 1,
+    p: Object.fromEntries(Object.entries(s.right).map(([k, v]) => [k, [Math.round(v.x), Math.round(v.y)]])),
+  }));
+  assert.equal(statusOf('kneeExt', 145, 'sport'), 'ok');
+  assert.equal(statusOf('kneeExt', 130, 'sport'), 'bad');
+  assert.equal(statusOf('torso', 44, 'sport'), 'ok');
+
+  const low = toFrames(syntheticSession({ saddleHeight: 68, torsoDeg: 44, seconds: 6 }));
+  const st = clipStatuses(low, 'sport', 88);
+  assert.equal(st.leg.length, low.length);
+  assert.ok(share(st.leg).bad > 0.95, JSON.stringify(share(st.leg)));   // Sattel deutlich zu tief
+  assert.ok(share(st.torso).ok > 0.95, JSON.stringify(share(st.torso)));
+  assert.ok(st.arm.every(Boolean));
+
+  const good = clipStatuses(toFrames(syntheticSession({ saddleHeight: 74.5, seconds: 6 })), 'sport', 88);
+  assert.ok(share(good.leg).ok > 0.95, JSON.stringify(share(good.leg)));
+  assert.equal(frameAt(low, 0), 0);
+  assert.equal(frameAt(low, 1e9), low.length - 1);
+  assert.equal(low[frameAt(low, 1010)].t, 1000);
 });

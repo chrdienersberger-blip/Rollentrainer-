@@ -1,8 +1,10 @@
-import { extractSide, coreVisibility, frameAngles, analyzeSession } from './analysis.js';
+import { extractSide, coreVisibility, frameAngles, analyzeSession, pickSide } from './analysis.js';
 import { evaluate, stability, saddleFromInseam, STYLES } from './evaluate.js';
 import { BRANDS, CATEGORIES, findBike } from './bikes.js';
 import { syntheticSession, syntheticFatigueWindows } from './demo.js';
 import { WINDOW, summarizeFatigue, windowFromResult } from './fatigue.js';
+import { putClip, getClip, pruneClips } from './clips.js';
+import { REGIONS, clipStatuses, share, frameAt, drawOutline } from './overlay.js';
 import { initHero } from './hero.js';
 
 const MP_VERSION = '0.10.14';
@@ -213,7 +215,8 @@ function resetRecording() {
   state.snapshot = null;
   state.snapshotKnee = 0;
   state.lastVideoTime = -1;
-  state.long = { cur: -1, windows: [], first: null, measuring: false };
+  state.long = { cur: -1, windows: [], first: null, measuring: false, clip: null, firstClip: null, lastClip: null };
+  state.clip = null;
   $('progressBar').style.width = '0';
 }
 
@@ -238,6 +241,7 @@ async function start(mode, file) {
     }
     await loadLandmarker();
     if (mode === 'file') {
+      state.file = file;
       state.fileUrl = URL.createObjectURL(file);
       video.src = state.fileUrl;
       video.onended = finish;
@@ -298,6 +302,7 @@ function loop() {
       state.phase = 'record';
       state.recStart = now;
       state.samples = [];
+      if (!isLong()) state.clip = startClip();
       say('Los');
     } else {
       banner(String(left), 'big');
@@ -309,7 +314,7 @@ function loop() {
     const win = Math.floor(elapsed / WINDOW.periodMs);
     const inBurst = elapsed - win * WINDOW.periodMs < WINDOW.burstMs;
     if (elapsed >= total) return finish();
-    if (inBurst && L.cur !== win) { L.cur = win; state.samples = []; }
+    if (inBurst && L.cur !== win) { L.cur = win; state.samples = []; L.clip = startClip(); }
     if (!inBurst && L.cur !== -1) closeWindow();
     L.measuring = inBurst;
     const rest = Math.ceil((total - elapsed) / 1000);
@@ -353,7 +358,7 @@ function loop() {
   }
 
   if (state.phase === 'record') {
-    state.samples.push({ t: now, left, right, span: Math.abs(left.shoulder.x - right.shoulder.x) });
+    state.samples.push({ t: now, vt: state.mode === 'file' ? video.currentTime * 1000 : null, left, right, span: Math.abs(left.shoulder.x - right.shoulder.x) });
     // Standbild im Moment der größten Kniestreckung merken
     if (visible && coreVisibility(p) >= 0.7 && angles.knee < 172 && angles.knee > state.snapshotKnee + 0.5 && !state.long.first) {
       state.snapshotKnee = angles.knee;
@@ -372,31 +377,197 @@ function smallSnapshot() {
   return c.toDataURL('image/jpeg', 0.72);
 }
 
+// ---------- Videoaufnahme der Messung ----------
+/** Startet die Aufzeichnung des Kamerabilds. Liefert null, wenn der Browser das nicht kann. */
+function startClip() {
+  if (state.mode !== 'camera' || !window.MediaRecorder || !state.stream) return null;
+  const mime = ['video/mp4', 'video/webm;codecs=vp9', 'video/webm'].find((m) => MediaRecorder.isTypeSupported(m));
+  try {
+    const rec = new MediaRecorder(state.stream, { ...(mime ? { mimeType: mime } : {}), videoBitsPerSecond: 1_500_000 });
+    const clip = { rec, chunks: [], t0: performance.now() };
+    rec.onstart = () => { clip.t0 = performance.now(); };
+    rec.ondataavailable = (e) => { if (e.data.size) clip.chunks.push(e.data); };
+    clip.done = new Promise((resolve) => {
+      rec.onstop = () => resolve(clip.chunks.length ? new Blob(clip.chunks, { type: rec.mimeType }) : null);
+      rec.onerror = () => resolve(null);
+    });
+    rec.start();
+    return clip;
+  } catch { return null; }
+}
+const stopClip = (clip) => { try { if (clip && clip.rec.state !== 'inactive') clip.rec.stop(); } catch { /* schon beendet */ } };
+
+/** Gelenkpunkte der Messung, passend zur Zeitachse des Videos. */
+function clipFrames(samples, side, t0) {
+  return samples.map((s) => ({
+    t: Math.round(s.vt ?? s.t - t0),
+    c: coreVisibility(s[side]) >= 0.5 ? 1 : 0,
+    a: Math.min(s[side].elbow.v, s[side].wrist.v) >= 0.5 ? 1 : 0,
+    p: Object.fromEntries(Object.entries(s[side]).map(([k, v]) => [k, [Math.round(v.x), Math.round(v.y)]])),
+  })).filter((f) => f.t >= 0);
+}
+
 /** Schließt das Messfenster der laufenden Minute ab und behält nur das Ergebnis. */
 function closeWindow() {
-  const L = state.long;
+  const L = state.long, clip = L.clip, minute = L.cur + 1;
   const r = analyzeSession(state.samples, settings());
-  L.windows.push(windowFromResult(L.cur + 1, r));
+  L.windows.push(windowFromResult(minute, r));
+  stopClip(clip);
+  if (r.ok && clip) {
+    // Video der ersten und der jeweils letzten auswertbaren Minute behalten
+    const entry = { minute, done: clip.done, frames: clipFrames(state.samples, r.side, clip.t0) };
+    if (!L.firstClip) L.firstClip = entry; else L.lastClip = entry;
+  }
   if (!L.first && r.ok) L.first = r;
   state.samples = [];
   L.cur = -1;
+  L.clip = null;
 }
 
-function finish() {
+async function finish() {
   if (state.phase !== 'record') return;
-  const long = isLong(), wasCamera = state.mode === 'camera';
+  const long = isLong(), mode = state.mode;
   if (long && state.long.cur !== -1 && state.samples.length >= 150) closeWindow();
-  const samples = state.samples, snapshot = state.snapshot, L = state.long;
+  const samples = state.samples, snapshot = state.snapshot, L = state.long, clip = state.clip, file = state.file;
+  const w = canvas.width, h = canvas.height;
+  stopClip(clip);
+  stopClip(L.clip);
   stopMedia();
-  if (wasCamera) say('Messung beendet.');
+  if (mode === 'camera') say('Messung beendet.');
   const result = long
     ? L.first ?? { ok: false, reason: 'In keiner Minute konnte die Tretbewegung sauber erkannt werden. Bitte Aufstellung und Licht prüfen.' }
     : analyzeSession(samples, settings());
   const record = buildRecord(result, snapshot);
   if (long) record.fatigue = { plannedMin: prefs.longMin, windows: L.windows };
+
+  // Videos zusammenstellen und auf dem Gerät ablegen
+  const clips = [];
+  if (long) {
+    if (L.firstClip) clips.push({ ...L.firstClip, label: `Beginn der Einheit · Minute ${L.firstClip.minute}` });
+    if (L.lastClip) clips.push({ ...L.lastClip, label: `Ende der Einheit · Minute ${L.lastClip.minute}` });
+  } else if (result.ok && (mode === 'file' || clip)) {
+    clips.push({
+      label: 'Deine Messung',
+      done: mode === 'file' ? Promise.resolve(file) : clip.done,
+      frames: clipFrames(samples, result.side ?? pickSide(samples), clip?.t0 ?? 0),
+    });
+  }
+  record.clips = [];
+  for (const [i, c] of clips.entries()) {
+    const blob = await c.done;
+    if (!blob || !c.frames.length) continue;
+    const id = `${record.date}-${i}`;
+    try {
+      await putClip({ id, label: c.label, blob, frames: c.frames, w, h });
+      record.clips.push({ id, label: c.label });
+    } catch { /* Speicher voll oder nicht verfügbar: Messung ohne Video */ }
+  }
+
   const previous = loadHistory()[0] ?? null;
-  if (record.result.ok) saveHistory([record, ...loadHistory()].slice(0, 12));
+  if (record.result.ok) {
+    const list = [record, ...loadHistory()].slice(0, 12);
+    saveHistory(list);
+    // Videos nur für die vier neuesten Messungen behalten
+    pruneClips(list.filter((r) => r.clips?.length).slice(0, 4).flatMap((r) => r.clips.map((c) => c.id)));
+  }
   showRecord(record, { previous });
+}
+
+/** Videoplayer mit halbtransparenter, nach Status eingefärbter Umrandung und Zeitleiste. */
+function clipPlayer(clip, label, styleKey, cadence) {
+  const { frames, w, h } = clip;
+  const st = clipStatuses(frames, styleKey, cadence);
+  const dur = frames[frames.length - 1].t;
+  const wrap = el('section', 'clip');
+  const stage = el('div', 'clipstage');
+  const vid = el('video');
+  vid.playsInline = true; vid.muted = true; vid.loop = true; vid.preload = 'auto';
+  vid.setAttribute('playsinline', '');
+  const url = URL.createObjectURL(clip.blob);
+  vid.src = url;
+  const cv = el('canvas');
+  cv.width = w; cv.height = h;
+  const cx = cv.getContext('2d');
+  const playIcon = el('div', 'clipplay', 'Abspielen');
+  stage.append(vid, cv, playIcon);
+  stage.style.aspectRatio = `${w} / ${h}`;
+
+  let outline = true, cur = -1;
+  const rows = REGIONS.map((r) => {
+    const row = el('div', 'tl');
+    const name = el('div', 'tlname');
+    const state = el('small');
+    name.append(el('b', null, r.label), state);
+    const bar = el('div', 'tlbar');
+    // Abschnitte gleicher Farbe zusammenfassen
+    let start = 0;
+    for (let i = 1; i <= frames.length; i++) {
+      if (i === frames.length || st[r.key][i] !== st[r.key][start]) {
+        const seg = el('i', st[r.key][start] ?? 'none');
+        const t1 = i === frames.length ? dur : frames[i].t;
+        seg.style.left = `${(frames[start].t / dur) * 100}%`;
+        seg.style.width = `${((t1 - frames[start].t) / dur) * 100}%`;
+        bar.append(seg);
+        start = i;
+      }
+    }
+    const head = el('span', 'tlhead');
+    bar.append(head);
+    bar.onpointerdown = (e) => {
+      const box = bar.getBoundingClientRect();
+      try { vid.currentTime = Math.max(0, Math.min(1, (e.clientX - box.left) / box.width)) * (dur / 1000); } catch { /* nicht spulbar */ }
+      render(vid.currentTime * 1000);
+    };
+    const sh = share(st[r.key]);
+    row.append(name, bar, el('div', 'tlshare', `${Math.round(sh.ok * 100)} %`));
+    row.title = r.what;
+    return { key: r.key, state, head };
+  });
+
+  function render(tMs) {
+    const i = frameAt(frames, tMs);
+    for (const r of rows) r.head.style.left = `${Math.min(100, (tMs / dur) * 100)}%`;
+    if (i === cur) return;
+    cur = i;
+    const now = { leg: st.leg[i], torso: st.torso[i], arm: st.arm[i] };
+    if (outline) drawOutline(cx, frames[i], now, w, h); else cx.clearRect(0, 0, w, h);
+    for (const r of rows) r.state.textContent = now[r.key] ? STATUS_TEXT[now[r.key]] : 'nicht sichtbar';
+  }
+  const tick = (_, meta) => {
+    if (!wrap.isConnected) { URL.revokeObjectURL(url); return; }
+    render((meta?.mediaTime ?? vid.currentTime) * 1000);
+    if (vid.requestVideoFrameCallback) vid.requestVideoFrameCallback(tick); else requestAnimationFrame(() => tick());
+  };
+  vid.addEventListener('loadeddata', () => { render(0); tick(); }, { once: true });
+
+  const toggle = () => { if (vid.paused) vid.play().catch(() => {}); else vid.pause(); };
+  stage.onclick = toggle;
+  vid.onplay = () => { playIcon.hidden = true; playBtn.textContent = 'Pause'; };
+  vid.onpause = () => { playIcon.hidden = false; playBtn.textContent = 'Abspielen'; };
+  const playBtn = el('button', 'textbtn', 'Abspielen');
+  playBtn.onclick = toggle;
+  const slowBtn = el('button', 'textbtn', 'Zeitlupe');
+  slowBtn.onclick = () => {
+    vid.playbackRate = vid.playbackRate === 1 ? 0.35 : 1;
+    slowBtn.textContent = vid.playbackRate === 1 ? 'Zeitlupe' : 'Normales Tempo';
+  };
+  const lineBtn = el('button', 'textbtn', 'Umrandung aus');
+  lineBtn.onclick = () => {
+    outline = !outline; cur = -1;
+    lineBtn.textContent = outline ? 'Umrandung aus' : 'Umrandung an';
+    render(vid.currentTime * 1000);
+  };
+  const controls = el('div', 'clipctl');
+  controls.append(playBtn, slowBtn, lineBtn);
+  const tl = el('div', 'tlwrap');
+  const tlhead = el('div', 'tl tlcap');
+  tlhead.append(el('div', 'tlname'), el('div', null, 'Verlauf im Video'), el('div', 'tlshare', 'im Ziel'));
+  tl.append(tlhead);
+  for (const [i, r] of rows.entries()) tl.append(r.head.parentElement.parentElement);
+  const legend = el('div', 'legend');
+  for (const k of ['ok', 'warn', 'bad']) { const b = badge(k); legend.append(b); }
+  wrap.append(el('div', 'clipcap', label), stage, controls, tl, legend);
+  return wrap;
 }
 
 // ---------- Ergebnis ----------
@@ -720,7 +891,20 @@ function showRecord(rec, { previous = null, demo = false, stored = false } = {})
     body.append(top);
   }
   for (const w of result.warnings ?? []) body.append(el('p', 'alert', w));
-  if (rec.snapshot) {
+  const clipHost = el('div');
+  body.append(clipHost);
+  if (rec.clips?.length) {
+    // Videos liegen in der Datenbank des Browsers und werden nachgeladen
+    (async () => {
+      for (const c of rec.clips) {
+        const clip = await getClip(c.id);
+        if (clip?.blob && clip.frames?.length && clipHost.isConnected) {
+          clipHost.append(clipPlayer(clip, c.label, rec.style, result.cadence));
+        }
+      }
+    })();
+  }
+  if (rec.snapshot && !rec.clips?.length) {
     const fig = el('figure');
     const img = el('img');
     img.src = rec.snapshot;
@@ -756,7 +940,9 @@ function showRecord(rec, { previous = null, demo = false, stored = false } = {})
     const del = el('button', 'textbtn', 'Diese Messung löschen');
     del.onclick = () => {
       if (!confirm('Diese Messung endgültig löschen?')) return;
-      saveHistory(loadHistory().filter((r) => r.date !== rec.date));
+      const list = loadHistory().filter((r) => r.date !== rec.date);
+      saveHistory(list);
+      pruneClips(list.filter((r) => r.clips?.length).slice(0, 4).flatMap((r) => r.clips.map((c) => c.id)));
       renderHistory();
       show('setup');
     };

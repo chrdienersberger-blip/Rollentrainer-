@@ -31,6 +31,8 @@ Danach ist die App unter `https://<benutzer>.github.io/<repo>/` erreichbar.
 | `index.html`, `style.css` | Oberfläche |
 | `js/app.js` | Kamera, Pose-Erkennung, Ablauf, Anzeige |
 | `js/analysis.js` | Winkelberechnung, Erkennung der Tretzyklen |
+| `js/overlay.js` | Farbige Umrandung der Person im aufgezeichneten Video |
+| `js/clips.js` | Ablage der Videos in der IndexedDB des Browsers |
 | `js/fatigue.js` | Ermüdungs-Check: Verlauf, Drift und Befunde über die Einheit |
 | `js/evaluate.js` | Zielbereiche je Sitzziel, Punktzahl und Empfehlungstexte |
 | `js/bikes.js` | Fahrradauswahl (Marke/Modell → Kategorie) |

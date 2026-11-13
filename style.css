@@ -186,3 +186,28 @@ figcaption { color: var(--muted); font-size: .62rem; margin: 8px 20px 0; text-tr
 .scorecard .eyebrow { color: var(--muted); margin-bottom: 6px; }
 .badge.info { color: var(--muted); }
 .badge.info::before { border-radius: 50%; background: none; border: 1.5px solid currentColor; }
+
+/* Video der Messung */
+.clip { margin: 22px -20px 0; }
+.clipcap { margin: 0 20px 10px; font-size: .74rem; font-weight: 600; text-transform: uppercase; letter-spacing: var(--caps); }
+.clipstage { position: relative; background: #000; cursor: pointer; }
+.clipstage video, .clipstage canvas { position: absolute; inset: 0; width: 100%; height: 100%; display: block; }
+.clipstage canvas { pointer-events: none; }
+.clipplay { position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); background: #111110d9; color: #f3f1ec;
+  padding: 10px 18px; font-size: .68rem; font-weight: 600; text-transform: uppercase; letter-spacing: var(--caps); pointer-events: none; }
+.clipctl { display: flex; flex-wrap: wrap; gap: 4px 20px; margin: 10px 20px 0; }
+.tlwrap { margin: 14px 20px 0; }
+.tl { display: grid; grid-template-columns: 96px 1fr 54px; gap: 12px; align-items: center; padding: 7px 0; border-top: 1px solid var(--line); }
+.tlcap { border-top: 0; padding-top: 0; font-size: .58rem; color: var(--muted); text-transform: uppercase; letter-spacing: .1em; }
+.tlname b { display: block; font-weight: 500; font-size: .9rem; }
+.tlname small { color: var(--muted); font-size: .58rem; text-transform: uppercase; letter-spacing: .08em; }
+.tlbar { position: relative; height: 14px; background: var(--line); cursor: pointer; touch-action: none; }
+.tlbar i { position: absolute; top: 0; bottom: 0; }
+.tlbar i.ok { background: var(--ok); } .tlbar i.warn { background: #d9a32b; } .tlbar i.bad { background: var(--bad); }
+.tlbar i.none { background: transparent; }
+.tlhead { position: absolute; top: -4px; bottom: -4px; width: 2px; margin-left: -1px; background: var(--ink); pointer-events: none; }
+.tlshare { text-align: right; white-space: nowrap; font-size: .9rem; font-variant-numeric: tabular-nums; }
+.tlcap .tlshare { font-size: .58rem; }
+.legend { display: flex; flex-wrap: wrap; gap: 2px 18px; margin: 6px 20px 0; }
+.legend .badge { margin-top: 6px; }
+@media (min-width: 620px) { .clip { margin-left: 0; margin-right: 0; } }

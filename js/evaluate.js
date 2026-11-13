@@ -21,6 +21,15 @@ function rate(v, lo, hi, tol) {
   };
 }
 
+/** Status eines Einzelwerts (für die Umrandung im Video): 'ok' | 'warn' | 'bad'. */
+export function statusOf(key, value, styleKey) {
+  const st = STYLES[styleKey] ?? STYLES.sport;
+  if (value == null || Number.isNaN(value)) return null;
+  if (key === 'kneeExt') return rate(value, KNEE_EXT[0], KNEE_EXT[1], 4).status;
+  const [lo, hi] = st[key];
+  return rate(value, lo, hi, 5).status;
+}
+
 /** Nötige Sattelhöhen-Änderung (mm, auf 5 mm gerundet), um den Ziel-Kniewinkel zu erreichen. */
 function saddleDeltaMm(kneeDeg, targetDeg, { thighPx, shankPx, pxPerCm }) {
   const legLen = (a) =>
