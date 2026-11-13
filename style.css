@@ -330,3 +330,64 @@ button:disabled { opacity: .35; cursor: default; }
   padding: 17px 16px; border: 1px solid var(--ink); }
 .badge.info { color: var(--muted); }
 .badge.info::before { border-radius: 50%; background: none; border: 1.5px solid currentColor; }
+
+/* Menüleiste ein-/ausblenden */
+.railtoggle { position: fixed; z-index: 6; left: 72px; bottom: calc(18px + env(safe-area-inset-bottom)); width: 30px; height: 44px; margin: 0; padding: 0;
+  background: var(--ink); color: var(--bg); border: 0; font-size: 1.1rem; letter-spacing: 0; line-height: 1; }
+body.norail .rail { display: none; }
+body.norail .sec { margin-left: 0; }
+body.norail .railtoggle { left: 0; width: 40px; font-size: 1rem; }
+body.busy .railtoggle { display: none; }
+@media (min-width: 900px) { .railtoggle { left: 210px; } }
+
+/* Startseite: Titelbild, Weg */
+.heroart { background: var(--panel); }
+.herophoto { display: block; width: 100%; aspect-ratio: 4 / 3; object-fit: cover; }
+.eyebrow.dark { color: var(--muted); margin-bottom: 12px; }
+#start .herotext h1 { font-size: clamp(2rem, 9.4vw, 3.2rem); }
+.way { margin-bottom: 26px; }
+.wayrow { display: flex; align-items: center; gap: 14px; padding: 14px 0; border-bottom: 1px solid var(--line); color: var(--ink); text-decoration: none; }
+.wayrow b { display: block; font-weight: 500; font-size: 1.08rem; }
+.wayrow small { color: var(--muted); font-size: .82rem; display: block; }
+.wayrow > div { flex: 1; min-width: 0; }
+.wayrow .go { font-size: .64rem; font-weight: 600; text-transform: uppercase; letter-spacing: .1em; color: var(--muted); white-space: nowrap; }
+.wayrow.next .go { color: var(--ink); border-bottom: 1px solid var(--ink); padding-bottom: 2px; }
+.tick { flex: none; width: 28px; height: 28px; border: 1px solid var(--ink); border-radius: 50%; display: grid; place-items: center;
+  font-style: normal; font-size: .76rem; font-variant-numeric: tabular-nums; }
+.done .tick { background: var(--ok); border-color: var(--ok); color: var(--bg); }
+.next .tick { background: var(--ink); color: var(--bg); }
+.wayrow.done b { color: var(--muted); }
+
+/* Einsteigerplan und Vorbereitung */
+.week { padding: 14px 0 6px; border-top: 1px solid var(--line); }
+.week > b { display: block; font-size: .74rem; font-weight: 600; text-transform: uppercase; letter-spacing: var(--caps); }
+.week > small { display: block; color: var(--muted); font-size: .84rem; margin: 4px 0 8px; }
+.planrow { display: flex; align-items: center; gap: 12px; padding: 8px 0; }
+.planrow > div { flex: 1; min-width: 0; }
+.planrow span { display: block; font-weight: 500; }
+.planrow small { color: var(--muted); font-size: .62rem; text-transform: uppercase; letter-spacing: .08em; }
+.planrow.done span { color: var(--muted); text-decoration: line-through; }
+.prep { margin-top: 10px; border: 1px solid var(--line); padding: 0 12px; }
+.prep summary { padding: 11px 0; font-size: .64rem; }
+.preprow { padding: 10px 0; border-top: 1px solid var(--line); }
+.preprow b { display: block; font-size: .62rem; font-weight: 600; text-transform: uppercase; letter-spacing: .1em; color: var(--muted); }
+.preprow p { margin: 4px 0 0; font-size: .9rem; }
+.prepnote { color: var(--faint); font-size: .72rem; margin: 0; padding: 10px 0 12px; border-top: 1px solid var(--line); }
+.card > .textbtn { margin-top: 8px; }
+
+/* Marketplace: Berater und Liste */
+.advice { margin-top: 18px; }
+.advice h3 { font-size: 1.7rem; font-weight: 500; text-transform: uppercase; letter-spacing: -.02em; margin: 6px 0 8px; }
+.advice p { margin: 0 0 10px; }
+.advice .eyebrow { color: var(--muted); }
+.advice .mtile i { margin-top: 6px; }
+.seg + div > .lbl, div + div > .lbl { margin-top: 18px; }
+.check { display: flex; gap: 14px; align-items: flex-start; padding: 12px 0; border-top: 1px solid var(--line); cursor: pointer;
+  text-transform: none; letter-spacing: 0; font-size: 1rem; color: var(--ink); }
+.check input { appearance: none; -webkit-appearance: none; flex: none; width: 22px; height: 22px; margin: 2px 0 0; border: 1px solid var(--ink); border-radius: 0; display: grid; place-items: center; }
+.check input:checked { background: var(--ink); }
+.check input:checked::after { content: "✓"; color: var(--bg); font-size: .8rem; }
+.check b { display: block; font-weight: 500; }
+.check small { display: block; color: var(--muted); font-size: .84rem; margin-top: 2px; }
+.check:has(input:checked) b { color: var(--muted); text-decoration: line-through; }
+.dirhead { margin: 26px 0 0; padding-top: 20px; border-top: 1px solid var(--line); }

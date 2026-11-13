@@ -8,10 +8,11 @@
   <meta name="apple-mobile-web-app-status-bar-style" content="default">
   <title>Sitzcheck – Training und Bike-Fitting auf dem Rollentrainer</title>
   <link rel="manifest" href="manifest.webmanifest">
-  <link rel="stylesheet" href="style.css?v=10">
+  <link rel="stylesheet" href="style.css?v=11">
 </head>
 <body>
-  <nav class="rail" aria-label="Hauptmenü">
+  <button id="railToggle" class="railtoggle" type="button" aria-controls="rail">‹</button>
+  <nav id="rail" class="rail" aria-label="Hauptmenü">
     <a class="raillogo" href="#start" aria-label="Sitzcheck Startseite">S</a>
     <a href="#start" data-sec="start">
       <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 11 12 4l8 7v9h-5v-6H9v6H4z"/></svg><span>Start</span>
@@ -101,7 +102,7 @@
     </section>
 
     <p class="note">Das Video wird nur auf deinem Gerät ausgewertet und gespeichert, nichts wird hochgeladen. Messungen bleiben im Speicher dieses Browsers; das Video gibt es für die vier neuesten. Die Messung ist eine Orientierung (Genauigkeit etwa ±3–5°) und ersetzt kein professionelles Bikefitting.</p>
-    <p class="note ver">Sitzcheck · Version 10</p>
+    <p class="note ver">Sitzcheck · Version 11</p>
   </main>
 
   <!-- Messung -->
@@ -137,7 +138,7 @@
 
   </section>
 
-  <script type="module" src="js/shell.js?v=10"></script>
-  <script type="module" src="js/app.js?v=10"></script>
+  <script type="module" src="js/shell.js?v=11"></script>
+  <script type="module" src="js/app.js?v=11"></script>
 </body>
 </html>

@@ -1,7 +1,7 @@
 // Trainingsbereich: Trainer verbinden, Workouts (ERG) und Strecken (Steigungssimulation) fahren.
 
-import { Trainer, bluetoothAvailable } from './trainer.js?v=10';
-import { WORKOUTS, ROUTES, workoutDuration, routeLength, routeClimb, targetAt, gradeAt, elevationAt, stepSpeed, summarize, toTcx } from './workouts.js?v=10';
+import { Trainer, bluetoothAvailable } from './trainer.js?v=11';
+import { WORKOUTS, ROUTES, workoutDuration, routeLength, routeClimb, targetAt, gradeAt, elevationAt, stepSpeed, summarize, toTcx, PLAN, planItem, prepFor } from './workouts.js?v=11';
 
 const PREFS_KEY = 'rollentrainer.training.v1', RIDES_KEY = 'rollentrainer.rides.v1';
 const SVGNS = 'http://www.w3.org/2000/svg';
@@ -31,7 +31,7 @@ const store = {
 };
 
 export function initTraining(root) {
-  const prefs = { ftp: 200, weight: 75, tab: 'workouts', ...store.get(PREFS_KEY, {}) };
+  const prefs = { ftp: 200, weight: 75, tab: 'workouts', planDone: {}, ...store.get(PREFS_KEY, {}) };
   const savePrefs = () => store.set(PREFS_KEY, prefs);
   const ftp = () => Math.min(500, Math.max(80, Number(prefs.ftp) || 200));
   const mass = () => Math.min(150, Math.max(40, Number(prefs.weight) || 75)) + 8; // plus Rad
@@ -153,19 +153,77 @@ export function initTraining(root) {
     const field = (label, key, unit, min, max) => {
       const l = el('label', null, label), f = el('span', 'field'), i = el('input');
       i.type = 'number'; i.inputMode = 'numeric'; i.min = min; i.max = max; i.value = prefs[key];
-      i.oninput = () => { prefs[key] = i.value; savePrefs(); renderList(); };
+      i.oninput = () => { prefs[key] = i.value; savePrefs(); renderList(); renderPlan(); };
+      i.dataset.key = key;
       f.append(i, el('i', null, unit));
       l.append(f);
       return l;
     };
     grid.append(field('FTP (Schwellenleistung)', 'ftp', 'W', 80, 500), field('Körpergewicht', 'weight', 'kg', 40, 150));
-    you.append(step2, grid, el('p', 'hint', 'Die Workouts richten sich nach deiner FTP. Kennst du sie nicht, fahre den Rampentest.'));
+    const guess = el('button', 'textbtn', 'FTP für Einsteiger schätzen');
+    guess.type = 'button';
+    guess.onclick = () => {
+      // grober Startwert: rund 2 Watt je Kilogramm
+      prefs.ftp = Math.round(((Number(prefs.weight) || 75) * 2) / 5) * 5;
+      savePrefs();
+      you.querySelector('input[data-key=ftp]').value = prefs.ftp;
+      renderList(); renderPlan();
+    };
+    you.append(step2, grid, el('p', 'hint', 'Die Workouts richten sich nach deiner FTP – der Leistung, die du etwa eine Stunde halten kannst. Kennst du sie nicht, nimm den Schätzwert und fahre später den Rampentest.'), guess);
     root.append(you);
+
+    // Einsteigerplan
+    const planCard = el('section', 'card');
+    planCard.id = 'plan';
+    root.append(planCard);
+    function renderPlan() {
+      const stepP = el('div', 'step');
+      stepP.append(el('span', null, '3'), el('h2', null, 'Dein Einsteigerplan'));
+      const all = PLAN.flatMap((wk, w) => wk.items.map((it, i) => `${w}-${i}`));
+      const doneN = all.filter((k) => prefs.planDone[k]).length, next = all.find((k) => !prefs.planDone[k]);
+      const intro = el('p', 'hint', doneN === all.length ? 'Geschafft – alle zwölf Einheiten sind gefahren. Such dir jetzt unten frei aus, was du fahren möchtest.'
+        : `Vier Wochen, drei Einheiten je Woche, mit mindestens einem Ruhetag dazwischen. ${doneN} von ${all.length} erledigt.`);
+      planCard.replaceChildren(stepP, intro);
+      PLAN.forEach((wk, w) => {
+        const box = el('div', 'week');
+        box.append(el('b', null, wk.title), el('small', null, wk.text));
+        wk.items.forEach(([kind, id], i) => {
+          const key = `${w}-${i}`, def = planItem(kind, id), row = el('div', `planrow${prefs.planDone[key] ? ' done' : ''}${key === next ? ' next' : ''}`);
+          const meta = kind === 'workout' ? `${Math.round(workoutDuration(def) / 60)} min · ${def.focus}` : `${de(routeLength(def) / 1000, 1)} km · Strecke`;
+          const left = el('div');
+          left.append(el('span', null, def.name), el('small', null, meta));
+          row.append(el('i', 'tick', prefs.planDone[key] ? '✓' : String(i + 1)), left);
+          if (key === next) {
+            const go = el('button', 'wkstart', 'Start');
+            go.type = 'button';
+            go.disabled = !trainer.connected;
+            go.onclick = () => startRide(kind, def, key);
+            row.append(go);
+          }
+          box.append(row);
+          if (key === next) box.append(prepBlock(kind, def, true));
+        });
+        planCard.append(box);
+      });
+    }
+    /** Aufklappbarer Block „Vorbereitung & Verpflegung“ für eine Einheit. */
+    function prepBlock(kind, def, open = false) {
+      const p = prepFor(kind, def, prefs.weight), d = el('details', 'prep');
+      d.open = open;
+      d.append(el('summary', null, `Vorbereitung & Verpflegung · ${p.label}`));
+      for (const [k, v] of [['Davor', p.before], ['Währenddessen', p.during], ['Danach', p.after], ['Bereitlegen', p.kit]]) {
+        const r = el('div', 'preprow');
+        r.append(el('b', null, k), el('p', null, v));
+        d.append(r);
+      }
+      d.append(el('p', 'prepnote', 'Allgemeine Richtwerte, auf dein Gewicht gerechnet – keine individuelle Ernährungsberatung.'));
+      return d;
+    }
 
     // Auswahl
     const pick = el('section', 'card');
     const step3 = el('div', 'step');
-    step3.append(el('span', null, '3'), el('h2', null, 'Deine Einheit'));
+    step3.append(el('span', null, '4'), el('h2', null, 'Alle Einheiten'));
     const tabs = el('div', 'seg'), list = el('div', 'wklist'), startHint = el('p', 'hint', 'Verbinde zuerst deinen Trainer oder wähle den Demo-Trainer.');
     for (const [key, label] of [['workouts', 'Workouts'], ['routes', 'Strecken']]) {
       const t = el('button', null, label);
@@ -191,11 +249,12 @@ export function initTraining(root) {
         go.disabled = !trainer.connected;
         go.onclick = () => startRide(kind, def);
         top.append(left, go);
-        row.append(top, profile(kind, def).svg, el('p', 'wktext', def.text));
+        row.append(top, profile(kind, def).svg, el('p', 'wktext', def.text), prepBlock(kind, def));
         list.append(row);
       }
     }
     renderList();
+    renderPlan();
     statusHook();
 
     // Verlauf
@@ -220,8 +279,8 @@ export function initTraining(root) {
   }
 
   // ---------- Fahrt ----------
-  async function startRide(kind, def) {
-    ride = { kind, def, name: def.name, t: 0, dist: 0, v: 0, samples: [], paused: false, bias: 1, date: Date.now(), lastCmd: null, grade: 0 };
+  async function startRide(kind, def, planKey = null) {
+    ride = { planKey, kind, def, name: def.name, t: 0, dist: 0, v: 0, samples: [], paused: false, bias: 1, date: Date.now(), lastCmd: null, grade: 0 };
     statusHook = null;
     document.body.classList.add('busy');
     wakeLock = await navigator.wakeLock?.request('screen').catch(() => null);
@@ -335,6 +394,9 @@ export function initTraining(root) {
     trainer.release();
     wakeLock?.release().catch(() => {});
     const done = { date: ride.date, name: ride.name, kind: ride.kind, ftp: ftp(), stats: summarize(ride.samples, ftp()), samples: ride.samples };
+    // Einheit aus dem Einsteigerplan gilt als erledigt, wenn mindestens 80 % gefahren wurden
+    const share = ride.kind === 'workout' ? ride.t / workoutDuration(ride.def) : ride.dist / routeLength(ride.def);
+    if (ride.planKey && share >= 0.8) { prefs.planDone[ride.planKey] = Date.now(); savePrefs(); }
     ride = null; liveHook = null;
     document.body.classList.remove('busy');
     if (done.stats.duration >= 60) {

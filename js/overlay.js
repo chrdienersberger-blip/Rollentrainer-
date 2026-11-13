@@ -2,8 +2,8 @@
 // Die Silhouette wird aus den Gelenkpunkten aufgebaut (Bein, Oberkörper, Arm)
 // und je Körperbereich danach eingefärbt, ob er im Zielbereich liegt.
 
-import { frameAngles, median } from './analysis.js?v=10';
-import { statusOf } from './evaluate.js?v=10';
+import { frameAngles, median } from './analysis.js?v=11';
+import { statusOf } from './evaluate.js?v=11';
 
 export const REGIONS = [
   { key: 'leg', label: 'Bein', what: 'Kniestreckung je Umdrehung' },

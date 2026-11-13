@@ -5,6 +5,10 @@ const seg = (min, from, to = from) => [Math.round(min * 60), from, to];
 const rep = (n, ...segs) => Array.from({ length: n }, () => segs).flat();
 
 export const WORKOUTS = [
+  { id: 'first', name: 'Erste Fahrt', focus: 'Einstieg', text: 'Zwanzig lockere Minuten zum Kennenlernen von Rad, Rolle und App.',
+    segs: [seg(5, 45, 58), seg(10, 60), seg(5, 58, 45)] },
+  { id: 'cadence', name: 'Trittfrequenz-Schule', focus: 'Technik', text: 'Gleiche Leistung, wechselnde Trittfrequenz: fahre die drei Blöcke mit etwa 80, 90 und 100 Umdrehungen pro Minute.',
+    segs: [seg(6, 45, 60), ...rep(3, seg(6, 62), seg(2, 50)), seg(4, 55, 45)] },
   { id: 'recovery', name: 'Lockere Runde', focus: 'Regeneration', text: 'Gleichmäßig locker, die Beine drehen sich frei.',
     segs: [seg(5, 45, 55), seg(20, 55), seg(5, 55, 45)] },
   { id: 'endurance', name: 'Grundlage', focus: 'Ausdauer', text: 'Ruhiges Dauertempo mit drei kurzen Antritten.',
@@ -114,4 +118,46 @@ export function toTcx(startMs, samples) {
     `<Activities><Activity Sport="Biking"><Id>${iso(startMs)}</Id><Lap StartTime="${iso(startMs)}">` +
     `<TotalTimeSeconds>${samples.length}</TotalTimeSeconds><DistanceMeters>${dist.toFixed(1)}</DistanceMeters><Calories>0</Calories>` +
     `<Intensity>Active</Intensity><TriggerMethod>Manual</TriggerMethod><Track>${points}</Track></Lap></Activity></Activities></TrainingCenterDatabase>`;
+}
+
+// Einsteigerplan: vier Wochen, drei Einheiten je Woche. Einträge: [Art, id]
+export const PLAN = [
+  { title: 'Woche 1 · Ankommen', text: 'Kurz und locker. Es geht nur darum, dich an Rad und Rolle zu gewöhnen.',
+    items: [['workout', 'first'], ['workout', 'recovery'], ['workout', 'cadence']] },
+  { title: 'Woche 2 · Rhythmus finden', text: 'Etwas länger, weiterhin ruhig – dazu die erste Strecke.',
+    items: [['workout', 'recovery'], ['workout', 'endurance'], ['route', 'flat']] },
+  { title: 'Woche 3 · Erste Belastung', text: 'Zum ersten Mal knapp unter der Schwelle und ein paar Hügel.',
+    items: [['workout', 'endurance'], ['workout', 'sweetspot'], ['route', 'hills']] },
+  { title: 'Woche 4 · Standort bestimmen', text: 'Der Rampentest zeigt deine FTP – danach passen alle Workouts genau zu dir.',
+    items: [['workout', 'endurance'], ['workout', 'ramp'], ['route', 'pass']] },
+];
+export const planItem = (kind, id) => (kind === 'workout' ? WORKOUTS : ROUTES).find((x) => x.id === id);
+
+/**
+ * Vorbereitung und Verpflegung für eine Einheit – allgemeine Richtwerte der Sporternährung,
+ * auf das Körpergewicht umgerechnet. Keine individuelle Ernährungsberatung.
+ */
+export function prepFor(kind, def, weightKg = 75) {
+  const kg = Math.min(150, Math.max(40, Number(weightKg) || 75));
+  const minutes = kind === 'workout' ? workoutDuration(def) / 60 : (routeLength(def) / 1000) * (def.id === 'pass' ? 5.5 : 2.4);
+  const peak = kind === 'workout' ? Math.max(...def.segs.map((x) => Math.max(x[1], x[2]))) : { flat: 70, hills: 90, pass: 100 }[def.id] ?? 80;
+  const level = peak >= 96 ? 'hard' : peak >= 76 || minutes >= 40 ? 'moderate' : 'easy';
+  const g = (perKg) => Math.round((kg * perKg) / 5) * 5;
+  const kit = 'Ventilator, Handtuch und eine volle Trinkflasche in Griffweite.';
+  if (level === 'easy') {
+    return { level, label: 'Locker', kit,
+      before: 'Keine besondere Vorbereitung nötig. Die letzte größere Mahlzeit sollte 2–3 Stunden zurückliegen; trink davor ein Glas Wasser.',
+      during: 'Eine Flasche Wasser (etwa 500 ml) reicht.',
+      after: 'Iss danach ganz normal.' };
+  }
+  if (level === 'moderate') {
+    return { level, label: 'Mittel', kit,
+      before: `2–3 Stunden vorher eine kohlenhydratreiche Mahlzeit mit etwa ${g(1)} g Kohlenhydraten (rund 1 g je kg Körpergewicht), zum Beispiel Haferflocken mit Banane oder Nudeln mit Tomatensauce. Liegt das Essen länger zurück: 30 Minuten vorher eine Banane.`,
+      during: `500–750 ml Wasser je Stunde.${minutes >= 60 ? ' Weil die Einheit eine Stunde oder länger dauert, zusätzlich etwa 30 g Kohlenhydrate je Stunde, zum Beispiel eine Banane oder ein Riegel.' : ''}`,
+      after: 'Eine normale Mahlzeit mit Kohlenhydraten und Eiweiß innerhalb von ein bis zwei Stunden.' };
+  }
+  return { level, label: 'Hart', kit,
+    before: `2–3 Stunden vorher ${g(1.5)}–${g(2)} g Kohlenhydrate (1,5–2 g je kg Körpergewicht) mit wenig Fett und Ballaststoffen, zum Beispiel Reis oder Nudeln mit magerer Beilage, Haferbrei mit Honig oder Weißbrot mit Marmelade. 15 Minuten vor dem Start nach Wunsch noch 20–30 g schnelle Kohlenhydrate (Banane oder Gel). Geh ausgeruht in die Einheit.`,
+    during: `Etwa 750 ml je Stunde, drinnen am besten mit Elektrolyten.${minutes >= 45 ? ' Dazu 30–60 g Kohlenhydrate je Stunde über Getränk, Gel oder Riegel.' : ''}`,
+    after: 'Innerhalb einer Stunde 20–25 g Eiweiß und Kohlenhydrate, zum Beispiel Quark mit Obst und Haferflocken oder ein belegtes Brot mit Ei.' };
 }

@@ -61,6 +61,12 @@ Die Messgenauigkeit liegt bei etwa ±3–5°. Aus der Seitenansicht sind seitlic
 Kniebewegungen und die Cleat-Stellung nicht erkennbar. Die Zielbereiche sind
 Richtwerte und ersetzen kein professionelles Bikefitting.
 
+## Titelfoto
+
+Die Startseite zeigt eine Zeichnung. Liegt im Projekt eine Datei `img/hero.jpg`
+(Querformat, etwa 1600 × 1200 Pixel), wird stattdessen dieses Foto gezeigt.
+Nur eigene oder ausdrücklich frei nutzbare Fotos verwenden.
+
 ## Versionen
 
 Alle Programmteile werden mit `?v=N` geladen. Bei jeder Veröffentlichung muss N

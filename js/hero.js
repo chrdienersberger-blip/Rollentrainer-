@@ -3,8 +3,8 @@
 // Die Räder sind Typ-Silhouetten (Aero, Allround, Endurance, Gravel, Zeitfahren),
 // keine maßstabsgetreuen Abbildungen einzelner Modelle.
 
-import { riderPose } from './demo.js?v=10';
-import { angleAt } from './analysis.js?v=10';
+import { riderPose } from './demo.js?v=11';
+import { angleAt } from './analysis.js?v=11';
 
 const SVGNS = 'http://www.w3.org/2000/svg';
 const HIP = { x: -74 * Math.cos((73 * Math.PI) / 180), y: 74 * Math.sin((73 * Math.PI) / 180) };
@@ -63,7 +63,7 @@ function wheel(parent, cx, cy, spec, isRear) {
 }
 
 /** Zeichnet das Rad neu (bei Wechsel des Modells). Liefert Griffpunkt und drehende Teile. */
-function buildBike(layer, bike) {
+export function buildBike(layer, bike) {
   layer.replaceChildren();
   const spec = SPECS[bike.cat] ?? SPECS.allround;
   const t = spec.tube;

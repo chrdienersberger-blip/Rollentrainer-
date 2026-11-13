@@ -12,10 +12,25 @@ function go() {
   for (const a of links) a.setAttribute('aria-current', a.dataset.sec === sec ? 'page' : 'false');
   window.scrollTo(0, 0);
   // Startseite bei jedem Besuch neu aufbauen, damit „Zuletzt“ aktuell ist
-  if (sec === 'start') import('./start.js?v=10').then((m) => m.renderStart(document.getElementById('start')));
+  if (sec === 'start') import('./start.js?v=11').then((m) => m.renderStart(document.getElementById('start')));
 }
 addEventListener('hashchange', go);
 go();
 
-import('./training.js?v=10').then((m) => m.initTraining(document.getElementById('training')));
-import('./market.js?v=10').then((m) => m.renderMarket(document.getElementById('market')));
+import('./training.js?v=11').then((m) => m.initTraining(document.getElementById('training')));
+import('./market.js?v=11').then((m) => m.renderMarket(document.getElementById('market')));
+
+// Menüleiste ein- und ausblenden
+const MENU_KEY = 'rollentrainer.menu.v1';
+const toggle = document.getElementById('railToggle');
+function setMenu(open) {
+  document.body.classList.toggle('norail', !open);
+  toggle.setAttribute('aria-expanded', String(open));
+  toggle.setAttribute('aria-label', open ? 'Menü ausblenden' : 'Menü einblenden');
+  toggle.textContent = open ? '‹' : '☰';
+  try { localStorage.setItem(MENU_KEY, open ? '1' : '0'); } catch { /* optional */ }
+}
+toggle.onclick = () => setMenu(document.body.classList.contains('norail'));
+let saved = null;
+try { saved = localStorage.getItem(MENU_KEY); } catch { /* optional */ }
+setMenu(saved !== '0');

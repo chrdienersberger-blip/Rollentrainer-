@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { parseIndoorBikeData, parseCyclingPower, parseHeartRate, cmdTargetPower, cmdSimulation } from '../js/ftms.js';
-import { WORKOUTS, ROUTES, workoutDuration, targetAt, gradeAt, elevationAt, routeLength, routeClimb, stepSpeed, summarize, toTcx } from '../js/workouts.js';
+import { WORKOUTS, ROUTES, workoutDuration, targetAt, gradeAt, elevationAt, routeLength, routeClimb, stepSpeed, summarize, toTcx, PLAN, planItem, prepFor } from '../js/workouts.js';
 
 const dv = (bytes) => new DataView(Uint8Array.from(bytes).buffer);
 
@@ -78,4 +78,32 @@ test('Auswertung und TCX-Export', () => {
   assert.match(tcx, /<ns3:Watts>200<\/ns3:Watts>/);
   assert.match(tcx, /<Id>2026-01-01T00:00:00.000Z<\/Id>/);
   assert.equal(tcx.match(/<Trackpoint>/g).length, 3);
+});
+
+test('Einsteigerplan verweist nur auf vorhandene Einheiten und beginnt leicht', () => {
+  assert.equal(PLAN.length, 4);
+  for (const week of PLAN) {
+    assert.equal(week.items.length, 3);
+    for (const [kind, id] of week.items) assert.ok(planItem(kind, id), `${kind} ${id}`);
+  }
+  const first = planItem(...PLAN[0].items[0]);
+  assert.equal(workoutDuration(first), 20 * 60);
+  assert.ok(Math.max(...first.segs.map((s) => Math.max(s[1], s[2]))) <= 60);
+});
+
+test('Vorbereitung richtet sich nach Härte, Dauer und Körpergewicht', () => {
+  const w = (id) => WORKOUTS.find((x) => x.id === id);
+  const easy = prepFor('workout', w('first'), 75);
+  assert.equal(easy.level, 'easy');
+  assert.match(easy.during, /500 ml/);
+  const mod = prepFor('workout', w('endurance'), 80);
+  assert.equal(mod.level, 'moderate');
+  assert.match(mod.before, /etwa 80 g Kohlenhydraten/);
+  const hard = prepFor('workout', w('vo2'), 70);
+  assert.equal(hard.level, 'hard');
+  assert.match(hard.before, /105–140 g Kohlenhydrate/);
+  assert.match(hard.after, /Eiweiß/);
+  assert.match(prepFor('workout', w('vo2'), 90).before, /135–180 g/);
+  assert.equal(prepFor('route', ROUTES.find((r) => r.id === 'pass'), 75).level, 'hard');
+  assert.equal(prepFor('route', ROUTES.find((r) => r.id === 'flat'), 75).level, 'easy');
 });
