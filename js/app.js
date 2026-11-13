@@ -1,10 +1,10 @@
-import { extractSide, coreVisibility, frameAngles, analyzeSession, pickSide } from './analysis.js?v=12';
-import { evaluate, stability, saddleFromInseam, statusOf, rangeOf, STYLES } from './evaluate.js?v=12';
-import { BRANDS, CATEGORIES, findBike } from './bikes.js?v=12';
-import { syntheticSession } from './demo.js?v=12';
-import { putClip, getClip, pruneClips } from './clips.js?v=12';
-import { REGIONS, clipStatuses, share, frameAt, drawOutline, drawSkeleton as drawJoints } from './overlay.js?v=12';
-import { initHero } from './hero.js?v=12';
+import { extractSide, coreVisibility, frameAngles, analyzeSession, pickSide } from './analysis.js?v=13';
+import { evaluate, stability, saddleFromInseam, statusOf, rangeOf, STYLES } from './evaluate.js?v=13';
+import { BRANDS, CATEGORIES, findBike } from './bikes.js?v=13';
+import { syntheticSession } from './demo.js?v=13';
+import { putClip, getClip, pruneClips } from './clips.js?v=13';
+import { REGIONS, clipStatuses, share, frameAt, drawOutline, drawSkeleton as drawJoints } from './overlay.js?v=13';
+import { initHero } from './hero.js?v=13';
 
 const MP_VERSION = '0.10.14';
 const MP_BASE = `https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@${MP_VERSION}`;
@@ -755,6 +755,25 @@ function showRecord(rec, { previous = null, demo = false, stored = false, liveCl
   const result = rec.result ?? { ok: true, metrics: rec.metrics, cadence: rec.cadence, cycles: null, warnings: [], geometry: null, kneeCurve: null, extras: null };
   const when = new Date(rec.date).toLocaleString('de-DE', { dateStyle: 'medium', timeStyle: 'short' });
   $('resMeta').textContent = demo ? 'Beispiel mit künstlichen Daten' : stored ? `${bike.name} · ${when}` : bike.name;
+
+  // Navigation: zurück zur Übersicht, bei gespeicherten Messungen auch zur vorigen/nächsten
+  const nav = el('div', 'resnav');
+  const backBtn = el('button', 'textbtn', '← Alle Messungen');
+  backBtn.type = 'button';
+  backBtn.onclick = () => { renderHistory(); show('setup'); if (!$('history').hidden) $('history').scrollIntoView(); };
+  nav.append(backBtn);
+  if (stored) {
+    const hist = loadHistory(), idx = hist.findIndex((h) => h.date === rec.date);
+    const jump = (label, j) => {
+      const b = el('button', 'textbtn', label);
+      b.type = 'button';
+      b.disabled = j < 0 || j >= hist.length;
+      b.onclick = () => showRecord(hist[j], { previous: hist[j + 1] ?? null, stored: true });
+      nav.append(b);
+    };
+    if (idx >= 0) { jump('‹ Neuere', idx - 1); jump('Ältere ›', idx + 1); }
+  }
+  body.append(nav);
 
   if (!result.ok) {
     const card = el('section', 'card');

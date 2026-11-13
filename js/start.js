@@ -1,8 +1,8 @@
 // Startseite: Überblick über die drei Bereiche, mit gezeichneten Grafiken.
 
-import { initHero, buildBike } from './hero.js?v=12';
-import { findBike } from './bikes.js?v=12';
-import { WORKOUTS, ROUTES, workoutDuration, routeLength } from './workouts.js?v=12';
+import { initHero, buildBike } from './hero.js?v=13';
+import { findBike } from './bikes.js?v=13';
+import { WORKOUTS, ROUTES, workoutDuration, routeLength } from './workouts.js?v=13';
 
 const SVGNS = 'http://www.w3.org/2000/svg';
 const INK = '#111110', PANEL = '#e4dfd5', MUTED = '#77736b', ACCENT = '#a8553a', GRID = '#d3cdc1';
@@ -90,13 +90,13 @@ function names() {
 
 export function renderStart(root) {
   const head = el('header', 'brand');
-  head.append(el('span', 'brandname', 'Sitzcheck'), el('span', 'brandtag', 'Für Rennrad-Einsteiger'));
+  head.append(el('span', 'brandname', 'Antritt'), el('span', 'brandtag', 'Für Rennrad-Einsteiger'));
 
   const hero = el('section', 'hero');
   const text = el('div', 'herotext');
   text.append(el('div', 'eyebrow dark', 'Dein Einstieg ins Rennradfahren'),
     el('h1', null, 'Vom ersten Rad bis zur ersten Ausfahrt.'),
-    el('p', null, 'Sitzcheck begleitet dich Schritt für Schritt: das passende Rad finden, richtig ausstatten, richtig sitzen und mit einem Einsteigerplan losfahren.'));
+    el('p', null, 'Antritt begleitet dich Schritt für Schritt: das passende Rad finden, richtig ausstatten, richtig sitzen und mit einem Einsteigerplan losfahren.'));
   const cta = el('a', 'primary btnlink', 'Los geht’s');
   cta.href = '#markt';
   text.append(cta);
@@ -170,5 +170,5 @@ export function renderStart(root) {
     root.append(last);
   }
   root.append(el('p', 'note', 'Alle Daten bleiben auf deinem Gerät. Die Grafiken sind gezeichnet; die Bike-Fitting-Messung ist eine Orientierung und ersetzt kein professionelles Bikefitting.'),
-    el('p', 'note ver', 'Sitzcheck · Version 12'));
+    el('p', 'note ver', 'Antritt · Version 13'));
 }

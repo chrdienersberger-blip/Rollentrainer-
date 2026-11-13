@@ -1,14 +1,15 @@
 // Trainingseinheiten, Strecken und die Rechenlogik dazu (ohne Browser-APIs).
 
 // Abschnitt: [Dauer in Sekunden, %FTP am Anfang, %FTP am Ende (bei Rampen)]
-const seg = (min, from, to = from) => [Math.round(min * 60), from, to];
+// optional: Ziel-Trittfrequenz als viertes Element
+const seg = (min, from, to = from, cad = null) => [Math.round(min * 60), from, to, cad];
 const rep = (n, ...segs) => Array.from({ length: n }, () => segs).flat();
 
 export const WORKOUTS = [
   { id: 'first', name: 'Erste Fahrt', focus: 'Einstieg', text: 'Zwanzig lockere Minuten zum Kennenlernen von Rad, Rolle und App.',
     segs: [seg(5, 45, 58), seg(10, 60), seg(5, 58, 45)] },
   { id: 'cadence', name: 'Trittfrequenz-Schule', focus: 'Technik', text: 'Gleiche Leistung, wechselnde Trittfrequenz: fahre die drei Blöcke mit etwa 80, 90 und 100 Umdrehungen pro Minute.',
-    segs: [seg(6, 45, 60), ...rep(3, seg(6, 62), seg(2, 50)), seg(4, 55, 45)] },
+    segs: [seg(6, 45, 60), seg(6, 62, 62, 80), seg(2, 50), seg(6, 62, 62, 90), seg(2, 50), seg(6, 62, 62, 100), seg(2, 50), seg(4, 55, 45)] },
   { id: 'recovery', name: 'Lockere Runde', focus: 'Regeneration', text: 'Gleichmäßig locker, die Beine drehen sich frei.',
     segs: [seg(5, 45, 55), seg(20, 55), seg(5, 55, 45)] },
   { id: 'endurance', name: 'Grundlage', focus: 'Ausdauer', text: 'Ruhiges Dauertempo mit drei kurzen Antritten.',
@@ -161,3 +162,37 @@ export function prepFor(kind, def, weightKg = 75) {
     during: `Etwa 750 ml je Stunde, drinnen am besten mit Elektrolyten.${minutes >= 45 ? ' Dazu 30–60 g Kohlenhydrate je Stunde über Getränk, Gel oder Riegel.' : ''}`,
     after: 'Innerhalb einer Stunde 20–25 g Eiweiß und Kohlenhydrate, zum Beispiel Quark mit Obst und Haferflocken oder ein belegtes Brot mit Ei.' };
 }
+
+// ---------- Zonen (wie in gängigen Trainings-Apps) ----------
+// Leistungszonen nach Anteil an der FTP
+export const POWER_ZONES = [
+  { z: 1, name: 'Regeneration', to: 55 }, { z: 2, name: 'Grundlage', to: 75 }, { z: 3, name: 'Tempo', to: 90 },
+  { z: 4, name: 'Schwelle', to: 105 }, { z: 5, name: 'VO₂max', to: 120 }, { z: 6, name: 'Anaerob', to: 150 }, { z: 7, name: 'Sprint', to: Infinity },
+];
+// Herzfrequenzzonen nach Anteil am Maximalpuls
+export const HR_ZONES = [
+  { z: 1, name: 'Sehr locker', to: 60 }, { z: 2, name: 'Locker', to: 70 }, { z: 3, name: 'Mittel', to: 80 },
+  { z: 4, name: 'Hart', to: 90 }, { z: 5, name: 'Maximal', to: Infinity },
+];
+export const powerZone = (watts, ftp) => POWER_ZONES.find((x) => (watts / ftp) * 100 <= x.to);
+export const hrZone = (hr, maxHr) => HR_ZONES.find((x) => (hr / maxHr) * 100 <= x.to);
+
+/** Herzfrequenzzone, die zur geforderten Leistung passt (der Puls reagiert mit ein bis zwei Minuten Verzögerung). */
+export function expectedHrZone(pctFtp) {
+  return pctFtp <= 55 ? 1 : pctFtp <= 75 ? 2 : pctFtp <= 90 ? 3 : pctFtp <= 105 ? 4 : 5;
+}
+
+/** Ziel-Trittfrequenz [von, bis] für einen Abschnitt; ohne Vorgabe der übliche Bereich. */
+export function cadenceRange(workout, index) {
+  const cad = workout?.segs?.[index]?.[3];
+  return cad ? [cad - 5, cad + 5] : [80, 100];
+}
+
+/** Zielbereich der Leistung um die Vorgabe: ±5 %, mindestens ±10 Watt. */
+export function powerRange(target) {
+  const tol = Math.max(10, target * 0.05);
+  return [Math.round(target - tol), Math.round(target + tol)];
+}
+
+/** 'low' | 'ok' | 'high' */
+export const judge = (value, [lo, hi]) => (value < lo ? 'low' : value > hi ? 'high' : 'ok');

@@ -1,7 +1,8 @@
 // Trainingsbereich: Trainer verbinden, Workouts (ERG) und Strecken (Steigungssimulation) fahren.
 
-import { Trainer, bluetoothAvailable } from './trainer.js?v=12';
-import { WORKOUTS, ROUTES, workoutDuration, routeLength, routeClimb, targetAt, gradeAt, elevationAt, stepSpeed, summarize, toTcx, PLAN, planItem, prepFor } from './workouts.js?v=12';
+import { Trainer, bluetoothAvailable } from './trainer.js?v=13';
+import { WORKOUTS, ROUTES, workoutDuration, routeLength, routeClimb, targetAt, gradeAt, elevationAt, stepSpeed, summarize, toTcx, PLAN, planItem, prepFor,
+  POWER_ZONES, HR_ZONES, powerZone, hrZone, expectedHrZone, cadenceRange, powerRange, judge } from './workouts.js?v=13';
 
 const PREFS_KEY = 'rollentrainer.training.v1', RIDES_KEY = 'rollentrainer.rides.v1';
 const SVGNS = 'http://www.w3.org/2000/svg';
@@ -31,9 +32,10 @@ const store = {
 };
 
 export function initTraining(root) {
-  const prefs = { ftp: 200, weight: 75, tab: 'workouts', planDone: {}, ...store.get(PREFS_KEY, {}) };
+  const prefs = { ftp: 200, weight: 75, maxHr: 185, tab: 'workouts', planDone: {}, ...store.get(PREFS_KEY, {}) };
   const savePrefs = () => store.set(PREFS_KEY, prefs);
   const ftp = () => Math.min(500, Math.max(80, Number(prefs.ftp) || 200));
+  const maxHr = () => Math.min(230, Math.max(120, Number(prefs.maxHr) || 185));
   const mass = () => Math.min(150, Math.max(40, Number(prefs.weight) || 75)) + 8; // plus Rad
   let ride = null, liveHook = null, statusHook = null, wakeLock = null;
   const recent = [];                                    // letzte Leistungswerte für das 3-s-Mittel
@@ -53,7 +55,7 @@ export function initTraining(root) {
 
   const header = (tag) => {
     const h = el('header', 'brand');
-    h.append(el('span', 'brandname', 'Sitzcheck'), el('span', 'brandtag', tag));
+    h.append(el('span', 'brandname', 'Antritt'), el('span', 'brandtag', tag));
     return h;
   };
 
@@ -132,8 +134,12 @@ export function initTraining(root) {
     const run = async (fn) => {
       hint.textContent = '';
       try { await fn(); } catch (err) {
-        if (err?.name !== 'NotFoundError') hint.textContent = 'Die Verbindung hat nicht geklappt. Ist der Trainer eingeschaltet und mit keiner anderen App verbunden?';
+        // NotFoundError = Auswahl abgebrochen oder kein Gerät gefunden
+        hint.textContent = err?.name === 'NotFoundError'
+          ? 'Es wurde kein Gerät ausgewählt. Taucht dein Trainer in der Liste nicht auf, probiere „Alle Bluetooth-Geräte anzeigen“. Der Trainer muss eingeschaltet sein (kurz treten) und darf mit keiner anderen App verbunden sein.'
+          : `Die Verbindung hat nicht geklappt. Trainer kurz antreten, andere Apps (Wahoo, Zwift) ganz schließen und noch einmal versuchen. Technische Meldung: ${err?.name ?? 'Fehler'} – ${err?.message ?? err}`;
       }
+      if (trainer.connected && trainer.log?.length) hint.textContent = `Verbunden. ${trainer.log.join(' · ')}`;
     };
     statusHook = () => {
       status.replaceChildren();
@@ -159,6 +165,10 @@ export function initTraining(root) {
         const h = b('Herzfrequenz-Sensor verbinden', 'secondary', () => run(() => trainer.connectHeartRate()));
         h.disabled = !bluetoothAvailable();
       }
+      if (bluetoothAvailable() && !trainer.connected) {
+        const allBtn = b('Alle Bluetooth-Geräte anzeigen', 'textbtn', () => run(() => trainer.connectBluetooth(true)));
+        allBtn.style.flexBasis = '100%';
+      }
       if (!bluetoothAvailable()) {
         hint.textContent = 'Dieser Browser kann keine Bluetooth-Geräte ansprechen. Das geht mit Chrome oder Edge auf Android, Windows und Mac. Auf iPhone und iPad funktioniert es weder in Safari noch in Chrome, weil dort alle Browser dieselbe Technik ohne Web-Bluetooth nutzen – es braucht einen Spezial-Browser mit dieser Funktion (z. B. Bluefy). Zum Ausprobieren gibt es den Demo-Trainer.';
       }
@@ -180,7 +190,7 @@ export function initTraining(root) {
       l.append(f);
       return l;
     };
-    grid.append(field('FTP (Schwellenleistung)', 'ftp', 'W', 80, 500), field('Körpergewicht', 'weight', 'kg', 40, 150));
+    grid.append(field('FTP (Schwellenleistung)', 'ftp', 'W', 80, 500), field('Körpergewicht', 'weight', 'kg', 40, 150), field('Maximalpuls', 'maxHr', '/min', 120, 230));
     const guess = el('button', 'textbtn', 'FTP für Einsteiger schätzen');
     guess.type = 'button';
     guess.onclick = () => {
@@ -190,7 +200,7 @@ export function initTraining(root) {
       you.querySelector('input[data-key=ftp]').value = prefs.ftp;
       renderList(); renderPlan();
     };
-    you.append(step2, grid, el('p', 'hint', 'Die Workouts richten sich nach deiner FTP – der Leistung, die du etwa eine Stunde halten kannst. Kennst du sie nicht, nimm den Schätzwert und fahre später den Rampentest.'), guess);
+    you.append(step2, grid, el('p', 'hint', 'Die Workouts richten sich nach deiner FTP – der Leistung, die du etwa eine Stunde halten kannst. Kennst du sie nicht, nimm den Schätzwert und fahre später den Rampentest. Den Maximalpuls kannst du grob mit 220 minus Lebensalter ansetzen; er bestimmt deine Herzfrequenzzonen.'), guess);
     root.append(you);
 
     // Einsteigerplan
@@ -324,6 +334,64 @@ export function initTraining(root) {
     const vPower = tile('Watt', 'main'), vTarget = tile(kind === 'workout' ? 'Ziel' : 'Steigung', 'main');
     const vCad = tile('Trittfrequenz'), vHr = tile('Herzfrequenz'), vSpeed = tile('km/h'), vDist = tile('km');
 
+    // Zonen-Anzeigen: Bin ich bei Leistung, Trittfrequenz und Herzfrequenz im richtigen Bereich?
+    const gauges = el('div', 'gauges');
+    const gauge = (label) => {
+      const g = el('div', 'gauge'), head = el('div', 'ghead'), state = el('span', 'gstate', '–'), bar = el('div', 'gbar'), mark = el('i', 'gmark');
+      head.append(el('b', null, label), state);
+      g.append(head, bar);
+      gauges.append(g);
+      return {
+        /** segs: [{ from, to, on }] in Einheiten der Skala min…max; on = Zielbereich */
+        set({ value, min, max, segs, status, text }) {
+          const pct = (v) => Math.max(0, Math.min(100, ((v - min) / (max - min)) * 100));
+          const key = segs.map((x) => `${x.from}-${x.to}-${x.on ? 1 : 0}`).join('|') + `|${min}|${max}`;
+          if (bar.dataset.key !== key) {
+            bar.dataset.key = key;
+            bar.replaceChildren(...segs.map((x) => {
+              const i = el('i', `gseg${x.on ? ' on' : ''}`);
+              i.style.left = `${pct(x.from)}%`; i.style.width = `${pct(x.to) - pct(x.from)}%`;
+              if (x.label) i.append(el('span', null, x.label));
+              return i;
+            }), mark);
+          }
+          mark.hidden = value == null;
+          if (value != null) mark.style.left = `${Math.max(1, Math.min(99, pct(value)))}%`;
+          state.textContent = text;
+          state.className = `gstate ${status ?? ''}`;
+        },
+      };
+    };
+    const gPower = gauge('Leistung'), gCad = gauge('Trittfrequenz'), gHr = gauge('Herzfrequenz');
+    const zoneSegs = (zones, top, scale, on) => zones.map((z, i) => ({
+      from: (i ? zones[i - 1].to : 0) * scale, to: Math.min(top, z.to) * scale, on: z.z === on, label: `Z${z.z}`,
+    }));
+    function updateGauges(tg) {
+      const d = trainer.data, p = power3s();
+      // Leistung
+      if (tg) {
+        const target = Math.round(tg.watts * ride.bias), range = powerRange(target), st = judge(p, range);
+        gPower.set({ value: p, min: target * 0.5, max: target * 1.5, segs: [{ from: range[0], to: range[1], on: true }], status: st,
+          text: st === 'ok' ? `Im Ziel · ${range[0]}–${range[1]} W` : st === 'low' ? `↑ ${range[0] - p} W zu wenig` : `↓ ${p - range[1]} W zu viel` });
+      } else {
+        const z = powerZone(p, ftp());
+        gPower.set({ value: p, min: 0, max: ftp() * 1.5, segs: zoneSegs(POWER_ZONES.slice(0, 6), 150, ftp() / 100, z.z), status: '', text: `Zone ${z.z} · ${z.name}` });
+      }
+      // Trittfrequenz
+      const cr = tg ? cadenceRange(def, tg.index) : [80, 100], cad = d.cadence || 0, cs = cad ? judge(cad, cr) : null;
+      gCad.set({ value: cad || null, min: 50, max: 130, segs: [{ from: cr[0], to: cr[1], on: true }], status: cs ?? '',
+        text: !cad ? 'Keine Daten' : cs === 'ok' ? `Im Bereich · ${cr[0]}–${cr[1]}` : cs === 'low' ? `↑ Schneller treten · Ziel ${cr[0]}–${cr[1]}` : `↓ Ruhiger treten · Ziel ${cr[0]}–${cr[1]}` });
+      // Herzfrequenz
+      const mh = maxHr(), want = tg ? expectedHrZone(tg.pct * ride.bias) : null;
+      if (d.hr) {
+        const z = hrZone(d.hr, mh), hs = want == null ? '' : z.z === want ? 'ok' : z.z < want ? 'low' : 'high';
+        gHr.set({ value: d.hr, min: mh * 0.5, max: mh, segs: zoneSegs(HR_ZONES, 100, mh / 100, want ?? z.z).filter((x) => x.to > mh * 0.5).map((x) => ({ ...x, from: Math.max(x.from, mh * 0.5) })), status: hs,
+          text: `Zone ${z.z} · ${z.name}` + (hs === 'ok' ? ' · passt' : hs === 'low' ? ` · Ziel Zone ${want} (Puls steigt verzögert)` : hs === 'high' ? ` · über Zielzone ${want}` : '') });
+      } else {
+        gHr.set({ value: null, min: mh * 0.5, max: mh, segs: zoneSegs(HR_ZONES, 100, mh / 100, want).filter((x) => x.to > mh * 0.5).map((x) => ({ ...x, from: Math.max(x.from, mh * 0.5) })), status: '', text: 'Kein Sensor verbunden' });
+      }
+    }
+
     const chart = el('div', 'ridechart');
     const pf = profile(kind, def, { H: 130, big: true });
     const trace = svgEl('polyline', { fill: 'none', stroke: ACCENT, 'stroke-width': 1.6, 'stroke-linejoin': 'round' }, pf.svg);
@@ -351,7 +419,7 @@ export function initTraining(root) {
     btn('Beenden', 'primary', () => finishRide());
     const warn = el('p', 'alert');
     warn.hidden = true;
-    root.replaceChildren(top, tiles, chart, ctl, ...(biasLabel ? [biasLabel] : []), warn);
+    root.replaceChildren(top, tiles, gauges, chart, ctl, ...(biasLabel ? [biasLabel] : []), warn);
 
     liveHook = () => {
       if (!ride) return;
@@ -366,6 +434,7 @@ export function initTraining(root) {
       if (kind === 'workout') {
         const total = workoutDuration(def), tg = targetAt(def, ride.t, ftp());
         time.textContent = clock(total - ride.t);
+        updateGauges(tg);
         vTarget.textContent = tg ? de(tg.watts * ride.bias) : '–';
         segInfo.textContent = ride.paused ? 'Pausiert' : tg ? `Abschnitt ${tg.index + 1} von ${def.segs.length} · noch ${clock(tg.remaining)}` : '';
         biasLabel.textContent = ride.bias === 1 ? 'Intensität 100 %' : `Intensität ${Math.round(ride.bias * 100)} %`;
@@ -374,6 +443,7 @@ export function initTraining(root) {
         marker.setAttribute('cy', pf.y(Math.min(topPct, (power3s() / ftp()) * 100)));
       } else {
         time.textContent = clock(ride.t);
+        updateGauges(null);
         vTarget.textContent = `${ride.grade > 0 ? '+' : ''}${de(ride.grade, 1)} %`;
         segInfo.textContent = ride.paused ? 'Pausiert' : `noch ${de((pf.total - ride.dist) / 1000, 1)} km · ${de(elevationAt(def, ride.dist))} m ü. M.`;
         cursor.setAttribute('x1', pf.x(ride.dist)); cursor.setAttribute('x2', pf.x(ride.dist));
@@ -501,7 +571,7 @@ export function initTraining(root) {
       dl.onclick = () => {
         const a = el('a');
         a.href = URL.createObjectURL(new Blob([toTcx(r.date, r.samples)], { type: 'application/vnd.garmin.tcx+xml' }));
-        a.download = `sitzcheck-${new Date(r.date).toISOString().slice(0, 10)}.tcx`;
+        a.download = `antritt-${new Date(r.date).toISOString().slice(0, 10)}.tcx`;
         a.click();
         setTimeout(() => URL.revokeObjectURL(a.href), 2000);
       };

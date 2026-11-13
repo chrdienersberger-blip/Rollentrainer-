@@ -1,4 +1,4 @@
-# Sitzcheck – Training und Bike-Fitting auf dem Rollentrainer
+# Antritt – Training und Bike-Fitting auf dem Rollentrainer
 
 Web-App mit Startseite und drei Bereichen, erreichbar über die Menüleiste links:
 

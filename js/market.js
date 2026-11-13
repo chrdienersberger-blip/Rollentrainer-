@@ -37,7 +37,7 @@ const GROUPS = [
   ] },
 ];
 
-import { BRANDS, CATEGORIES } from './bikes.js?v=12';
+import { BRANDS, CATEGORIES } from './bikes.js?v=13';
 
 const STARTER_KEY = 'rollentrainer.starter.v1';
 const DOMAIN = { Canyon: 'canyon.com', 'Cervélo': 'cervelo.com', Specialized: 'specialized.com', Trek: 'trekbikes.com', Giant: 'giant-bicycles.com',
@@ -159,7 +159,7 @@ function checklist(st) {
 export function renderMarket(root) {
   const st = load();
   const head = el('header', 'brand');
-  head.append(el('span', 'brandname', 'Sitzcheck'), el('span', 'brandtag', 'Marketplace'));
+  head.append(el('span', 'brandname', 'Antritt'), el('span', 'brandtag', 'Marketplace'));
   const intro = el('div', 'pagehead');
   intro.append(el('h1', null, 'Rad und Ausrüstung'),
     el('p', null, 'Was du für den Einstieg brauchst, welches Rad zu dir passt und wo du es findest.'));
@@ -184,5 +184,5 @@ export function renderMarket(root) {
     sec.append(h, grid);
     root.append(sec);
   }
-  root.append(el('p', 'note', 'Sitzcheck ist mit keinem der Anbieter verbunden und erhält keine Provision. Verlinkt ist jeweils die Startseite; Preise und tagesaktuelle Angebote werden hier nicht abgerufen. Die Budget-Hinweise sind grobe Orientierung.'));
+  root.append(el('p', 'note', 'Antritt ist mit keinem der Anbieter verbunden und erhält keine Provision. Verlinkt ist jeweils die Startseite; Preise und tagesaktuelle Angebote werden hier nicht abgerufen. Die Budget-Hinweise sind grobe Orientierung.'));
 }

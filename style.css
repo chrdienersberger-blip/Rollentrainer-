@@ -218,7 +218,7 @@ body.busy .sec { margin-left: 0; }
 @media (min-width: 900px) {
   .rail { width: 210px; padding-top: 22px; }
   .rail a.raillogo { text-align: left; padding: 4px 24px 26px; font-size: 1.1rem; letter-spacing: .1em; }
-  .rail a.raillogo::after { content: "ITZCHECK"; }
+  .rail a.raillogo::after { content: "NTRITT"; }
   .rail a { flex-direction: row; gap: 14px; padding: 14px 22px; font-size: .68rem; letter-spacing: var(--caps); text-align: left; }
   .sec { margin-left: 210px; }
 }
@@ -407,3 +407,24 @@ body.norail .ridetop { padding-left: 54px; }
 .livetiles .rt:nth-child(3) { border-left: 1px solid var(--line); padding-left: 12px; }
 .livetiles .rt b { font-size: 2rem; }
 .livetiles .rt small, .ridetiles .rt small { font-size: .5rem; letter-spacing: .06em; }
+
+/* Ergebnis: Navigation zwischen Messungen */
+.resnav { display: flex; flex-wrap: wrap; gap: 4px 20px; padding: 12px 0 0; }
+.resnav .textbtn:first-child { margin-right: auto; }
+.textbtn:disabled { opacity: .3; text-decoration: none; }
+
+/* Zonen-Anzeigen in der Fahrt */
+.gauges { padding: 6px 0 4px; border-bottom: 1px solid var(--ink); }
+.gauge { padding: 10px 0 12px; }
+.gauge + .gauge { border-top: 1px solid var(--line); }
+.ghead { display: flex; justify-content: space-between; align-items: baseline; gap: 10px; }
+.ghead b { font-size: .6rem; font-weight: 600; text-transform: uppercase; letter-spacing: .1em; color: var(--muted); white-space: nowrap; }
+.gstate { font-size: .9rem; font-weight: 500; text-align: right; }
+.gstate.ok { color: var(--ok); }
+.gstate.low, .gstate.high { color: var(--warn); }
+.gbar { position: relative; height: 22px; margin-top: 8px; background: var(--line); }
+.gseg { position: absolute; top: 0; bottom: 0; box-shadow: inset -1px 0 0 var(--bg); }
+.gseg.on { background: var(--ok); opacity: .55; }
+.gseg span { position: absolute; left: 4px; top: 50%; transform: translateY(-50%); font-size: .52rem; font-style: normal; color: var(--ink); letter-spacing: .04em; }
+.gmark { position: absolute; top: -4px; bottom: -4px; width: 3px; margin-left: -1.5px; background: var(--ink); box-shadow: 0 0 0 2px var(--bg); }
+#training .grid2 { row-gap: 16px; }

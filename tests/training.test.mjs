@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { parseIndoorBikeData, parseCyclingPower, parseHeartRate, cmdTargetPower, cmdSimulation } from '../js/ftms.js';
-import { WORKOUTS, ROUTES, workoutDuration, targetAt, gradeAt, elevationAt, routeLength, routeClimb, stepSpeed, summarize, toTcx, PLAN, planItem, prepFor } from '../js/workouts.js';
+import { WORKOUTS, ROUTES, workoutDuration, targetAt, gradeAt, elevationAt, routeLength, routeClimb, stepSpeed, summarize, toTcx, PLAN, planItem, prepFor, powerZone, hrZone, expectedHrZone, cadenceRange, powerRange, judge } from '../js/workouts.js';
 
 const dv = (bytes) => new DataView(Uint8Array.from(bytes).buffer);
 
@@ -106,4 +106,29 @@ test('Vorbereitung richtet sich nach Härte, Dauer und Körpergewicht', () => {
   assert.match(prepFor('workout', w('vo2'), 90).before, /135–180 g/);
   assert.equal(prepFor('route', ROUTES.find((r) => r.id === 'pass'), 75).level, 'hard');
   assert.equal(prepFor('route', ROUTES.find((r) => r.id === 'flat'), 75).level, 'easy');
+});
+
+test('Zonen: Leistung, Herzfrequenz, Trittfrequenz', () => {
+  assert.equal(powerZone(100, 200).z, 1);
+  assert.equal(powerZone(150, 200).z, 2);
+  assert.equal(powerZone(180, 200).z, 3);
+  assert.equal(powerZone(200, 200).name, 'Schwelle');
+  assert.equal(powerZone(236, 200).z, 5);
+  assert.equal(powerZone(400, 200).z, 7);
+  assert.equal(hrZone(100, 185).z, 1);
+  assert.equal(hrZone(125, 185).z, 2);
+  assert.equal(hrZone(160, 185).z, 4);
+  assert.equal(hrZone(180, 185).z, 5);
+  assert.equal(expectedHrZone(60), 2);
+  assert.equal(expectedHrZone(98), 4);
+  assert.equal(expectedHrZone(118), 5);
+  const cad = WORKOUTS.find((w) => w.id === 'cadence');
+  assert.deepEqual(cadenceRange(cad, 1), [75, 85]);
+  assert.deepEqual(cadenceRange(cad, 5), [95, 105]);
+  assert.deepEqual(cadenceRange(cad, 0), [80, 100]);
+  assert.deepEqual(powerRange(200), [190, 210]);
+  assert.deepEqual(powerRange(100), [90, 110]);
+  assert.equal(judge(185, [190, 210]), 'low');
+  assert.equal(judge(200, [190, 210]), 'ok');
+  assert.equal(judge(230, [190, 210]), 'high');
 });
