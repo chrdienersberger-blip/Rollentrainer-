@@ -8,7 +8,7 @@
   <meta name="apple-mobile-web-app-status-bar-style" content="default">
   <title>Sitzcheck – Sitzposition auf dem Rollentrainer</title>
   <link rel="manifest" href="manifest.webmanifest">
-  <link rel="stylesheet" href="style.css?v=5">
+  <link rel="stylesheet" href="style.css?v=6">
 </head>
 <body>
   <!-- Einrichtung -->
@@ -21,7 +21,16 @@
 
     <section class="hero">
       <svg id="heroSvg" viewBox="-88 -138 196 170" role="img" aria-label="Animierte Seitenansicht eines Radfahrers auf dem gewählten Rad mit eingezeichnetem Kniewinkel"></svg>
+      <figure id="heroPhoto" hidden>
+        <img id="heroImg" alt="">
+        <figcaption id="heroCredit"></figcaption>
+      </figure>
       <div id="heroCaption" class="herocap"></div>
+      <div class="photobar">
+        <label id="ownPhotoLabel" class="textbtn">Eigenes Foto<input id="ownPhotoInput" type="file" accept="image/*" hidden></label>
+        <button id="nextPhotoBtn" class="textbtn" type="button" hidden>Anderes Foto</button>
+        <button id="removePhotoBtn" class="textbtn" type="button" hidden>Foto entfernen</button>
+      </div>
       <div class="herotext">
         <h1>Sitzt du richtig<br>auf deinem Rad?</h1>
         <p>Handy seitlich aufstellen, 45 Sekunden treten – die App misst deine Gelenkwinkel und sagt dir, was du an Sattel und Cockpit ändern kannst.</p>
@@ -79,8 +88,8 @@
       <div id="historyList"></div>
     </section>
 
-    <p class="note">Das Video wird nur auf deinem Gerät ausgewertet und nicht hochgeladen. Die Messung ist eine Orientierung (Genauigkeit etwa ±3–5°) und ersetzt kein professionelles Bikefitting.</p>
-    <p class="note ver">Sitzcheck · Version 5</p>
+    <p class="note">Das Video wird nur auf deinem Gerät ausgewertet und nicht hochgeladen. Messungen und eigene Fotos bleiben im Speicher dieses Browsers. Für das Foto des gewählten Rads fragt die App Wikimedia Commons ab. Die Messung ist eine Orientierung (Genauigkeit etwa ±3–5°) und ersetzt kein professionelles Bikefitting.</p>
+    <p class="note ver">Sitzcheck · Version 6</p>
   </main>
 
   <!-- Messung -->
@@ -114,6 +123,6 @@
     <button id="againBtn" class="primary">Neue Messung</button>
   </main>
 
-  <script type="module" src="js/app.js?v=5"></script>
+  <script type="module" src="js/app.js?v=6"></script>
 </body>
 </html>

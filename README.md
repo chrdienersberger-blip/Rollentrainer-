@@ -27,6 +27,7 @@ Danach ist die App unter `https://<benutzer>.github.io/<repo>/` erreichbar.
 | `js/analysis.js` | Winkelberechnung, Erkennung der Tretzyklen |
 | `js/evaluate.js` | Zielbereiche je Sitzziel, Punktzahl und Empfehlungstexte |
 | `js/bikes.js` | Fahrradauswahl (Marke/Modell → Kategorie) |
+| `js/photos.js` | Fotos der Räder (eigenes Foto oder Wikimedia Commons) |
 | `js/hero.js` | Animierte Startgrafik (Fahrer und Rad-Silhouette je Typ) |
 | `js/demo.js` | Gelenkmodell für Startgrafik, Demo und Tests |
 

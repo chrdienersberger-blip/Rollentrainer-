@@ -3,6 +3,7 @@ import { evaluate, stability, saddleFromInseam, STYLES } from './evaluate.js';
 import { BRANDS, CATEGORIES, findBike } from './bikes.js';
 import { syntheticSession } from './demo.js';
 import { initHero } from './hero.js';
+import { ownPhoto, saveOwnPhoto, removeOwnPhoto, commonsPhotos } from './photos.js';
 
 const MP_VERSION = '0.10.14';
 const MP_BASE = `https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@${MP_VERSION}`;
@@ -10,6 +11,7 @@ const MODEL_URL = 'https://storage.googleapis.com/mediapipe-models/pose_landmark
 const COUNTDOWN_S = 10;
 const HISTORY_KEY = 'rollentrainer.history.v1';
 const SETTINGS_KEY = 'rollentrainer.settings.v1';
+const PICK_KEY = 'rollentrainer.photopick.v1';
 const SVGNS = 'http://www.w3.org/2000/svg';
 
 const $ = (id) => document.getElementById(id);
@@ -92,6 +94,9 @@ function renderBikeInfo() {
   const chips = [el('span', 'chip hl', cat.label)];
   if (bike.integrated) chips.push(el('span', 'chip', 'Integriertes Cockpit'));
   $('bikeChips').replaceChildren(...chips);
+  const cap = $('heroCaption');
+  cap.replaceChildren(el('b', null, bike.generic ? cat.label : bike.name));
+  if (!bike.generic) cap.append(` · ${cat.label}`);
   $('styleHint').textContent = prefs.style === cat.style
     ? `Passend zum ${bike.generic ? 'Radtyp' : bike.name} vorgeschlagen. Du kannst ein anderes Ziel wählen.`
     : `Für ${bike.generic ? 'diesen Radtyp' : 'das ' + bike.name} wäre „${STYLES[cat.style].label}“ typisch – deine Wahl gilt.`;
@@ -135,6 +140,7 @@ function initSetup() {
     store.set(SETTINGS_KEY, prefs);
     renderStyleSeg();
     renderBikeInfo();
+    updatePhoto();
   };
 
   renderStyleSeg();
@@ -322,9 +328,19 @@ function loop() {
     // Standbild im Moment der größten Kniestreckung merken
     if (visible && coreVisibility(p) >= 0.7 && angles.knee < 172 && angles.knee > state.snapshotKnee + 0.5) {
       state.snapshotKnee = angles.knee;
-      state.snapshot = canvas.toDataURL('image/jpeg', 0.75);
+      state.snapshot = smallSnapshot();
     }
   }
+}
+
+/** Standbild verkleinert, damit es mit der Messung gespeichert werden kann. */
+function smallSnapshot() {
+  const c = document.createElement('canvas');
+  const scale = Math.min(1, 800 / canvas.width);
+  c.width = Math.round(canvas.width * scale);
+  c.height = Math.round(canvas.height * scale);
+  c.getContext('2d').drawImage(canvas, 0, 0, c.width, c.height);
+  return c.toDataURL('image/jpeg', 0.72);
 }
 
 function finish() {
@@ -332,7 +348,10 @@ function finish() {
   const samples = state.samples, snapshot = state.snapshot, wasCamera = state.mode === 'camera';
   stopMedia();
   if (wasCamera) say('Messung beendet.');
-  showResults(analyzeSession(samples, settings()), { snapshot, save: true });
+  const record = buildRecord(analyzeSession(samples, settings()), snapshot);
+  const previous = loadHistory()[0] ?? null;
+  if (record.result.ok) saveHistory([record, ...loadHistory()].slice(0, 12));
+  showRecord(record, { previous });
 }
 
 // ---------- Ergebnis ----------
@@ -373,9 +392,9 @@ function statTiles(result, stab) {
     return t;
   };
   wrap.append(
-    tile(String(result.cadence), 'U/min Trittfrequenz'),
-    tile(String(result.cycles), 'Umdrehungen gemessen'),
-    tile(`${de(stab.value)} cm`, 'Hüftbewegung'));
+    tile(String(result.cadence ?? '–'), 'U/min Trittfrequenz'),
+    tile(String(result.cycles ?? '–'), 'Umdrehungen gemessen'),
+    tile(stab ? `${de(stab.value)} cm` : '–', 'Hüftbewegung'));
   return wrap;
 }
 
@@ -483,12 +502,47 @@ function infoCard(icon, title, text) {
   return card;
 }
 
-function showResults(result, { snapshot = null, save = false, demo = false } = {}) {
+// ---------- Gespeicherte Messungen ----------
+const loadHistory = () => store.get(HISTORY_KEY, []);
+function saveHistory(list) {
+  try {
+    localStorage.setItem(HISTORY_KEY, JSON.stringify(list));
+  } catch {
+    // Speicher voll: Standbilder der älteren Messungen weglassen
+    store.set(HISTORY_KEY, list.map((r, i) => (i ? { ...r, snapshot: null } : r)));
+  }
+}
+
+/** Alles, was nötig ist, um eine Auswertung später wieder genauso anzuzeigen. */
+function buildRecord(result, snapshot = null) {
+  const cfg = settings();
+  const score = result.ok ? evaluate(result, cfg.style, cfg.bike).score : null;
+  return {
+    date: Date.now(), bikeKey: prefs.bike, bike: cfg.bike.name, style: cfg.style,
+    inseamCm: cfg.inseamCm, score, cadence: result.cadence, metrics: result.metrics, result, snapshot,
+  };
+}
+
+function bikeOfRecord(rec) {
+  if (rec.bikeKey) return findBike(rec.bikeKey);
+  for (const [brand, list] of Object.entries(BRANDS)) {
+    const hit = list.find((x) => `${brand} ${x.model}` === rec.bike);
+    if (hit) return findBike(`${brand}|${hit.model}`);
+  }
+  const cat = Object.keys(CATEGORIES).find((k) => CATEGORIES[k].label === rec.bike);
+  return findBike(`other|${cat ?? 'allround'}`);
+}
+
+/** Zeigt eine Messung an – frisch gemessen oder aus dem Verlauf geöffnet. */
+function showRecord(rec, { previous = null, demo = false, stored = false } = {}) {
   show('results');
   const body = $('resBody');
   body.replaceChildren();
-  const cfg = settings();
-  $('resMeta').textContent = demo ? 'Beispiel mit künstlichen Daten' : cfg.bike.name;
+  const bike = bikeOfRecord(rec);
+  // Ältere Einträge enthalten nur die Messwerte
+  const result = rec.result ?? { ok: true, metrics: rec.metrics, cadence: rec.cadence, cycles: null, warnings: [], geometry: null, kneeCurve: null, extras: null };
+  const when = new Date(rec.date).toLocaleString('de-DE', { dateStyle: 'medium', timeStyle: 'short' });
+  $('resMeta').textContent = demo ? 'Beispiel mit künstlichen Daten' : stored ? `${bike.name} · ${when}` : bike.name;
 
   if (!result.ok) {
     const card = el('section', 'card');
@@ -496,9 +550,8 @@ function showResults(result, { snapshot = null, save = false, demo = false } = {
     body.append(card);
     return;
   }
-  const ev = evaluate(result, cfg.style, cfg.bike);
-  const stab = stability(result.extras);
-  const previous = save ? store.get(HISTORY_KEY, [])[0]?.metrics : null;
+  const ev = evaluate(result, rec.style, bike);
+  const stab = result.extras ? stability(result.extras) : null;
 
   body.append(scoreCard(ev, result), statTiles(result, stab));
   if (ev.top) {
@@ -506,54 +559,119 @@ function showResults(result, { snapshot = null, save = false, demo = false } = {
     top.append(el('div', 'eyebrow', 'Wichtigste Anpassung'), el('h2', null, ev.top.action), el('p', null, ev.top.tip));
     body.append(top);
   }
-  for (const w of result.warnings) body.append(el('p', 'alert', w));
-  if (snapshot) {
+  for (const w of result.warnings ?? []) body.append(el('p', 'alert', w));
+  if (rec.snapshot) {
     const fig = el('figure');
     const img = el('img');
-    img.src = snapshot;
+    img.src = rec.snapshot;
     img.alt = 'Moment der größten Kniestreckung mit eingezeichneten Gelenken';
     fig.append(img, el('figcaption', null, 'Moment der größten Kniestreckung'));
     body.append(fig);
   }
-  body.append(kneeChart(result.kneeCurve));
+  if (result.kneeCurve) body.append(kneeChart(result.kneeCurve));
 
   let group = null;
   for (const it of ev.items) {
     if (it.group !== group) { group = it.group; body.append(el('div', 'group', group)); }
-    body.append(itemCard(it, previous?.[it.key]));
+    body.append(itemCard(it, previous?.metrics?.[it.key]));
   }
 
-  body.append(el('div', 'group', 'Weitere Hinweise'));
-  body.append(infoCard('↕', `Ruhe im Sattel: ${{ ok: 'ruhig', warn: 'leicht unruhig', bad: 'unruhig' }[stab.status]}`, `${stab.tip} Gemessene Auf-/Abbewegung der Hüfte: ${de(stab.value)} cm je Umdrehung.`));
-  const sh = saddleFromInseam(cfg.inseamCm);
+  const extra = [];
+  if (stab) {
+    extra.push(infoCard('↕', `Ruhe im Sattel: ${{ ok: 'ruhig', warn: 'leicht unruhig', bad: 'unruhig' }[stab.status]}`, `${stab.tip} Gemessene Auf-/Abbewegung der Hüfte: ${de(stab.value)} cm je Umdrehung.`));
+  }
+  const sh = saddleFromInseam(rec.inseamCm);
   if (sh) {
-    body.append(infoCard('⌖', `Richtwert Sattelhöhe: ${de(sh)} cm`, `Aus deiner Schrittlänge (${de(cfg.inseamCm)} cm × 0,883), gemessen von der Tretlagermitte bis zur Satteloberkante entlang des Sitzrohrs. Als Startwert zum Gegenprüfen mit dem Maßband.`));
+    extra.push(infoCard('⌖', `Richtwert Sattelhöhe: ${de(sh)} cm`, `Aus deiner Schrittlänge (${de(rec.inseamCm)} cm × 0,883), gemessen von der Tretlagermitte bis zur Satteloberkante entlang des Sitzrohrs. Als Startwert zum Gegenprüfen mit dem Maßband.`));
   }
-  if (cfg.bike.integrated) {
-    body.append(infoCard('⚙', `Cockpit am ${cfg.bike.name}`, 'Bei integrierten Lenker-Vorbau-Einheiten sind Länge und Höhe je nach Ausstattung nur über herstellerspezifische Teile änderbar. Vor einem Umbau die Angaben des Herstellers prüfen.'));
+  if (bike.integrated) {
+    extra.push(infoCard('⚙', `Cockpit am ${bike.name}`, 'Bei integrierten Lenker-Vorbau-Einheiten sind Länge und Höhe je nach Ausstattung nur über herstellerspezifische Teile änderbar. Vor einem Umbau die Angaben des Herstellers prüfen.'));
   }
+  if (!rec.result) {
+    extra.push(infoCard('i', 'Ältere Messung', 'Diese Messung stammt aus einer früheren Version der App. Gespeichert sind nur die Messwerte – Standbild und Kniewinkel-Kurve gibt es erst für neue Messungen.'));
+  }
+  if (extra.length) body.append(el('div', 'group', 'Weitere Hinweise'), ...extra);
 
-  if (save) {
-    store.set(HISTORY_KEY, [
-      { date: Date.now(), style: ev.style, bike: cfg.bike.name, score: ev.score, cadence: result.cadence, metrics: result.metrics },
-      ...store.get(HISTORY_KEY, []),
-    ].slice(0, 10));
+  if (stored) {
+    const del = el('button', 'textbtn', 'Diese Messung löschen');
+    del.onclick = () => {
+      if (!confirm('Diese Messung endgültig löschen?')) return;
+      saveHistory(loadHistory().filter((r) => r.date !== rec.date));
+      renderHistory();
+      show('setup');
+    };
+    body.append(del);
   }
 }
 
 function renderHistory() {
-  const hist = store.get(HISTORY_KEY, []);
+  const hist = loadHistory();
   $('history').hidden = !hist.length;
-  $('historyList').replaceChildren(...hist.map((h) => {
-    const row = el('div', 'hist');
+  $('historyList').replaceChildren(...hist.map((h, i) => {
+    const row = el('button', 'hist');
+    row.type = 'button';
     const d = new Date(h.date).toLocaleString('de-DE', { dateStyle: 'short', timeStyle: 'short' });
     const mid = el('div', null, h.bike ?? 'Messung');
     mid.append(el('small', null, `${d} · ${STYLES[h.style]?.label ?? ''}`));
     row.append(el('div', 'sc', h.score != null ? String(h.score) : '–'), mid,
-      el('div', 'r', `Knie ${de(h.metrics.kneeExt)}°`));
+      el('div', 'r', `Knie ${de(h.metrics.kneeExt)}°`), el('div', 'go', '→'));
+    row.setAttribute('aria-label', `Messung vom ${d} öffnen`);
+    row.onclick = () => showRecord(h, { previous: hist[i + 1] ?? null, stored: true });
     return row;
   }));
 }
+
+// ---------- Foto des Rads ----------
+let photoReq = 0, photoList = [];
+function showPhoto(photo) {
+  $('heroPhoto').hidden = !photo;
+  $('heroSvg').style.display = photo ? 'none' : '';
+  if (!photo) return;
+  $('heroImg').src = photo.src;
+  $('heroImg').alt = `Foto: ${findBike(prefs.bike).name}`;
+  const credit = $('heroCredit');
+  credit.replaceChildren();
+  if (photo.page) {
+    const a = el('a', null, `Foto: ${photo.credit}`);
+    a.href = photo.page; a.target = '_blank'; a.rel = 'noopener';
+    credit.append(a);
+  } else {
+    credit.textContent = photo.credit;
+  }
+}
+async function updatePhoto() {
+  const key = prefs.bike, bike = findBike(key), req = ++photoReq;
+  const own = ownPhoto(key);
+  photoList = [];
+  $('removePhotoBtn').hidden = !own;
+  $('nextPhotoBtn').hidden = true;
+  $('ownPhotoLabel').firstChild.textContent = own ? 'Foto ersetzen' : 'Eigenes Foto';
+  if (own) return showPhoto({ src: own, credit: 'Dein eigenes Foto' });
+  showPhoto(null);
+  if (bike.generic) return;
+  try { photoList = await commonsPhotos(bike); } catch { photoList = []; }
+  if (req !== photoReq || !photoList.length) return;
+  const pick = (store.get(PICK_KEY, {})[key] ?? 0) % photoList.length;
+  $('nextPhotoBtn').hidden = photoList.length < 2;
+  showPhoto(photoList[pick]);
+}
+$('heroImg').onerror = () => showPhoto(null);
+$('nextPhotoBtn').onclick = () => {
+  const picks = store.get(PICK_KEY, {});
+  picks[prefs.bike] = ((picks[prefs.bike] ?? 0) + 1) % photoList.length;
+  store.set(PICK_KEY, picks);
+  showPhoto(photoList[picks[prefs.bike]]);
+};
+$('ownPhotoInput').onchange = async (e) => {
+  const file = e.target.files[0];
+  e.target.value = '';
+  if (!file) return;
+  try {
+    if (!(await saveOwnPhoto(prefs.bike, file))) alert('Das Foto konnte nicht gespeichert werden – der Speicher des Browsers ist voll.');
+  } catch { alert('Dieses Bild kann nicht gelesen werden.'); }
+  updatePhoto();
+};
+$('removePhotoBtn').onclick = () => { removeOwnPhoto(prefs.bike); updatePhoto(); };
 
 // ---------- Bedienung ----------
 $('startBtn').onclick = () => start('camera');
@@ -563,7 +681,7 @@ $('fileInput').onchange = (e) => {
   if (file) start('file', file);
 };
 $('demoBtn').onclick = () =>
-  showResults(analyzeSession(syntheticSession({ saddleHeight: 72, torsoDeg: 44 }), settings()), { demo: true });
+  showRecord(buildRecord(analyzeSession(syntheticSession({ saddleHeight: 72, torsoDeg: 44 }), settings())), { demo: true });
 $('cancelBtn').onclick = () => { stopMedia(); renderHistory(); show('setup'); };
 $('againBtn').onclick = () => { renderHistory(); show('setup'); };
 $('switchBtn').onclick = async () => {
@@ -575,7 +693,8 @@ document.addEventListener('visibilitychange', () => {
 });
 
 initSetup();
-initHero($('heroSvg'), $('heroCaption'),
+initHero($('heroSvg'),
   () => ({ style: prefs.style, bike: findBike(prefs.bike) }),
-  () => !$('setup').hidden && !document.hidden);
+  () => !$('setup').hidden && !document.hidden && $('heroPhoto').hidden);
 renderHistory();
+updatePhoto();

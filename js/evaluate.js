@@ -70,13 +70,13 @@ export function evaluate(result, styleKey, bike = null) {
   {
     let tip = 'Die Sattelhöhe passt.', action = null;
     if (m.kneeExt < KNEE_EXT[0]) {
-      const mm = saddleDeltaMm(m.kneeExt, KNEE_EXT[0] + 3, result.geometry);
-      action = `Sattel ca. ${mm} mm höher`;
-      tip = `Das Bein wird unten zu wenig gestreckt – der Sattel ist vermutlich zu niedrig. Sattel um etwa ${mm} mm höher stellen${steps(mm)}`;
+      const mm = result.geometry ? saddleDeltaMm(m.kneeExt, KNEE_EXT[0] + 3, result.geometry) : null;
+      action = mm ? `Sattel ca. ${mm} mm höher` : 'Sattel höher stellen';
+      tip = `Das Bein wird unten zu wenig gestreckt – der Sattel ist vermutlich zu niedrig. Sattel ${mm ? `um etwa ${mm} mm ` : ''}höher stellen${steps(mm ?? 10)}`;
     } else if (m.kneeExt > KNEE_EXT[1]) {
-      const mm = saddleDeltaMm(m.kneeExt, KNEE_EXT[1] - 3, result.geometry);
-      action = `Sattel ca. ${mm} mm tiefer`;
-      tip = `Das Bein wird unten sehr weit gestreckt – der Sattel ist vermutlich zu hoch. Sattel um etwa ${mm} mm tiefer stellen${steps(mm)}`;
+      const mm = result.geometry ? saddleDeltaMm(m.kneeExt, KNEE_EXT[1] - 3, result.geometry) : null;
+      action = mm ? `Sattel ca. ${mm} mm tiefer` : 'Sattel tiefer stellen';
+      tip = `Das Bein wird unten sehr weit gestreckt – der Sattel ist vermutlich zu hoch. Sattel ${mm ? `um etwa ${mm} mm ` : ''}tiefer stellen${steps(mm ?? 10)}`;
     }
     add({ key: 'kneeExt', label: 'Kniewinkel unten', sub: 'Streckung am unteren Totpunkt', group: 'Sattelhöhe', value: m.kneeExt, unit: '°', tip, action },
       KNEE_EXT[0], KNEE_EXT[1], 4, 3);

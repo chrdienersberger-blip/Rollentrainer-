@@ -5,7 +5,6 @@
 
 import { riderPose } from './demo.js';
 import { angleAt } from './analysis.js';
-import { CATEGORIES } from './bikes.js';
 
 const SVGNS = 'http://www.w3.org/2000/svg';
 const HIP = { x: -74 * Math.cos((73 * Math.PI) / 180), y: 74 * Math.sin((73 * Math.PI) / 180) };
@@ -129,10 +128,10 @@ function buildBike(layer, textLayer, bike) {
 }
 
 /**
- * svg: Ziel-Element, caption: Element für den Modellnamen,
+ * svg: Ziel-Element,
  * getState(): { style, bike } – wird in jedem Bild abgefragt.
  */
-export function initHero(svg, caption, getState, isVisible) {
+export function initHero(svg, getState, isVisible) {
   const root = svgEl('g', { transform: 'scale(1,-1)', 'stroke-linecap': 'round', 'stroke-linejoin': 'round' }, svg);
   svgEl('ellipse', { cx: 9, cy: -27.5, rx: 78, ry: 2.2, fill: C.ink, opacity: 0.1 }, root);
   svgEl('line', { x1: -88, x2: 108, y1: -27, y2: -27, stroke: '#bdb8ad', 'stroke-width': 0.4 }, root);
@@ -186,11 +185,6 @@ export function initHero(svg, caption, getState, isVisible) {
     if (key !== bikeKey) {
       bikeKey = key;
       bikeParts = buildBike(bikeLayer, textLayer, bike);
-      caption.replaceChildren();
-      const b = document.createElement('b');
-      b.textContent = bike.generic ? CATEGORIES[bike.cat].label : bike.name;
-      caption.append(b);
-      if (!bike.generic) caption.append(` · ${CATEGORIES[bike.cat].label}`);
       cur.wrist ??= { ...bikeParts.wrist };
     }
     const k = reduced ? 1 : 0.09;

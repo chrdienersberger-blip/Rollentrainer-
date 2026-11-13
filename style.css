@@ -157,10 +157,22 @@ figcaption { color: var(--muted); font-size: .62rem; margin: 8px 20px 0; text-tr
 .info b { display: block; font-weight: 500; font-size: 1.02rem; }
 .info p { margin: 4px 0 0; color: var(--muted); font-size: .88rem; }
 
+.hero figure { margin: 0; }
+#heroImg { display: block; width: 100%; aspect-ratio: 196 / 170; object-fit: cover; background: var(--panel); }
+#heroCredit { margin: 8px 20px 0; }
+#heroCredit a { color: inherit; }
+.photobar { display: flex; flex-wrap: wrap; gap: 4px 18px; margin: 8px 20px 0; }
+.textbtn { width: auto; display: inline-block; border: 0; padding: 6px 0; margin: 0; background: none; cursor: pointer;
+  font-size: .66rem; font-weight: 600; color: var(--ink); text-transform: uppercase; letter-spacing: var(--caps);
+  text-decoration: underline; text-underline-offset: 4px; }
+#resBody > .textbtn { margin-top: 22px; color: var(--bad); }
+
 /* Verlauf */
 #history { margin-top: 18px; border-top: 1px solid var(--ink); }
 #history h2 { margin-bottom: 6px; }
-.hist { display: flex; align-items: center; gap: 16px; padding: 12px 0; border-top: 1px solid var(--line); font-size: .92rem; }
+.hist { display: flex; align-items: center; gap: 16px; padding: 12px 0; margin: 0; border: 0; border-top: 1px solid var(--line);
+  font-size: .92rem; font-weight: 400; text-transform: none; letter-spacing: 0; text-align: left; }
+.hist .go { color: var(--muted); font-size: 1rem; }
 .hist:first-child { border-top: 0; }
 .hist .sc { flex: none; width: 44px; font-size: 1.7rem; font-weight: 400; letter-spacing: -.03em; font-variant-numeric: tabular-nums; }
 .hist small { color: var(--muted); display: block; font-size: .64rem; text-transform: uppercase; letter-spacing: .1em; }
