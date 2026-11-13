@@ -6,25 +6,42 @@
   <meta name="theme-color" content="#f3f1ec">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="default">
-  <title>Sitzcheck – Sitzposition auf dem Rollentrainer</title>
+  <title>Sitzcheck – Training und Bike-Fitting auf dem Rollentrainer</title>
   <link rel="manifest" href="manifest.webmanifest">
-  <link rel="stylesheet" href="style.css?v=8">
+  <link rel="stylesheet" href="style.css?v=9">
 </head>
 <body>
+  <nav class="rail" aria-label="Hauptmenü">
+    <div class="raillogo">S</div>
+    <a href="#training" data-sec="training">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M13 2 5 13.5h6L10 22l9-12h-6.2z"/></svg><span>Training</span>
+    </a>
+    <a href="#fitting" data-sec="fitting">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 20 12 5l3 6M4 20h16M9.5 20a6 6 0 0 0-1.6-4.3"/></svg><span>Bike-Fitting</span>
+    </a>
+    <a href="#markt" data-sec="markt">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 8h14l-1 12H6zM9 8V6a3 3 0 0 1 6 0v2"/></svg><span>Marketplace</span>
+    </a>
+  </nav>
+
+  <section id="sec-training" class="sec" hidden><main id="training" class="view"></main></section>
+  <section id="sec-markt" class="sec" hidden><main id="market" class="view"></main></section>
+
+  <section id="sec-fitting" class="sec" hidden>
   <!-- Einrichtung -->
   <main id="setup" class="view">
     <header class="brand">
       <span class="logo" aria-hidden="true"></span>
       <span class="brandname">Sitzcheck</span>
-      <span class="brandtag">Bikefitting per Kamera</span>
+      <span class="brandtag">Bike-Fitting-Check</span>
     </header>
 
     <section class="hero">
       <svg id="heroSvg" viewBox="-88 -138 196 170" role="img" aria-label="Technische Zeichnung: Radfahrer in der Seitenansicht auf dem gewählten Radtyp, mit eingezeichneten Winkeln an Knie, Hüfte und Ellbogen"></svg>
       <div id="heroCaption" class="herocap"></div>
       <div class="herotext">
-        <h1>Hältst du deine Position – auch nach 40 Minuten?</h1>
-        <p>Sitzcheck misst per Handykamera nicht nur, ob du richtig sitzt, sondern wie sich deine Haltung über eine ganze Einheit auf dem Rollentrainer verändert.</p>
+        <h1>Sitzt du richtig<br>auf deinem Rad?</h1>
+        <p>Handy seitlich aufstellen, 45 Sekunden treten – die App misst deine Gelenkwinkel und sagt dir, was du an Sattel und Cockpit ändern kannst.</p>
       </div>
     </section>
 
@@ -50,14 +67,8 @@
           <span class="field"><input id="inseam" type="number" inputmode="decimal" min="55" max="110" placeholder="–"><i>cm</i></span>
         </label>
       </div>
-    </section>
-
-    <section class="card">
-      <div class="step"><span>4</span><h2>Deine Messung</h2></div>
-      <div id="kindSeg" class="seg" role="group" aria-label="Art der Messung"></div>
-      <p id="kindHint" class="hint"></p>
-      <label class="lbl">Dauer</label>
-      <div id="durSeg" class="seg" role="group" aria-label="Dauer"></div>
+      <label class="lbl">Messdauer</label>
+      <div id="durSeg" class="seg" role="group" aria-label="Messdauer"></div>
     </section>
 
     <details class="card">
@@ -86,7 +97,7 @@
     </section>
 
     <p class="note">Das Video wird nur auf deinem Gerät ausgewertet und gespeichert, nichts wird hochgeladen. Messungen bleiben im Speicher dieses Browsers; das Video gibt es für die vier neuesten. Die Messung ist eine Orientierung (Genauigkeit etwa ±3–5°) und ersetzt kein professionelles Bikefitting.</p>
-    <p class="note ver">Sitzcheck · Version 8</p>
+    <p class="note ver">Sitzcheck · Version 9</p>
   </main>
 
   <!-- Messung -->
@@ -104,7 +115,6 @@
     </div>
     <div class="row">
       <button id="switchBtn" class="secondary">Kamera wechseln</button>
-      <button id="finishBtn" class="secondary" hidden>Beenden &amp; auswerten</button>
       <button id="cancelBtn" class="secondary">Abbrechen</button>
     </div>
   </main>
@@ -121,6 +131,9 @@
     <button id="againBtn" class="primary">Neue Messung</button>
   </main>
 
-  <script type="module" src="js/app.js?v=8"></script>
+  </section>
+
+  <script type="module" src="js/shell.js?v=9"></script>
+  <script type="module" src="js/app.js?v=9"></script>
 </body>
 </html>

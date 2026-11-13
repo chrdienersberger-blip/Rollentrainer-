@@ -3,8 +3,8 @@
 // Die Räder sind Typ-Silhouetten (Aero, Allround, Endurance, Gravel, Zeitfahren),
 // keine maßstabsgetreuen Abbildungen einzelner Modelle.
 
-import { riderPose } from './demo.js';
-import { angleAt } from './analysis.js';
+import { riderPose } from './demo.js?v=9';
+import { angleAt } from './analysis.js?v=9';
 
 const SVGNS = 'http://www.w3.org/2000/svg';
 const HIP = { x: -74 * Math.cos((73 * Math.PI) / 180), y: 74 * Math.sin((73 * Math.PI) / 180) };

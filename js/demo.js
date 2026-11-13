@@ -49,23 +49,3 @@ export function syntheticSession({
   }
   return samples;
 }
-
-/** Künstlicher Verlauf einer Einheit, in der die Haltung ab der Mitte nachlässt. */
-export function syntheticFatigueWindows(minutes = 40) {
-  let seed = 11;
-  const rnd = (a) => ((seed = (seed * 16807) % 2147483647) / 2147483647 - 0.5) * 2 * a;
-  const ramp = (m, from, perMin) => Math.max(0, m - from) * perMin;
-  const r1 = (v) => Math.round(v * 10) / 10;
-  return Array.from({ length: minutes }, (_, i) => {
-    const m = i + 1;
-    if (m === 13) return { minute: m, ok: false };
-    return {
-      minute: m, ok: true,
-      torso: r1(41 + ramp(m, 18, 0.28) + rnd(0.6)),
-      kneeExt: r1(144.5 - ramp(m, 20, 0.27) + rnd(0.7)),
-      hipBob: r1(0.9 + ramp(m, 24, 0.09) + rnd(0.15)),
-      elbow: r1(154 + ramp(m, 26, 0.5) + rnd(1.5)),
-      cadence: Math.round(91 - ramp(m, 10, 0.25) + rnd(1.2)),
-    };
-  });
-}

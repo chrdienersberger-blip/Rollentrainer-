@@ -1,11 +1,10 @@
-import { extractSide, coreVisibility, frameAngles, analyzeSession, pickSide } from './analysis.js';
-import { evaluate, stability, saddleFromInseam, STYLES } from './evaluate.js';
-import { BRANDS, CATEGORIES, findBike } from './bikes.js';
-import { syntheticSession, syntheticFatigueWindows } from './demo.js';
-import { WINDOW, summarizeFatigue, windowFromResult } from './fatigue.js';
-import { putClip, getClip, pruneClips } from './clips.js';
-import { REGIONS, clipStatuses, share, frameAt, drawOutline } from './overlay.js';
-import { initHero } from './hero.js';
+import { extractSide, coreVisibility, frameAngles, analyzeSession, pickSide } from './analysis.js?v=9';
+import { evaluate, stability, saddleFromInseam, STYLES } from './evaluate.js?v=9';
+import { BRANDS, CATEGORIES, findBike } from './bikes.js?v=9';
+import { syntheticSession } from './demo.js?v=9';
+import { putClip, getClip, pruneClips } from './clips.js?v=9';
+import { REGIONS, clipStatuses, share, frameAt, drawOutline } from './overlay.js?v=9';
+import { initHero } from './hero.js?v=9';
 
 const MP_VERSION = '0.10.14';
 const MP_BASE = `https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@${MP_VERSION}`;
@@ -24,8 +23,7 @@ const state = {
   samples: [], votes: { left: 0, right: 0 },
   snapshot: null, snapshotKnee: 0, raf: 0, lastVideoTime: -1, wakeLock: null,
 };
-const prefs = { bike: 'other|allround', style: 'sport', height: 175, inseam: '', duration: 45, kind: 'check', longMin: 40 };
-const isLong = () => state.mode === 'camera' && prefs.kind === 'fatigue';
+const prefs = { bike: 'other|allround', style: 'sport', height: 175, inseam: '', duration: 45 };
 let landmarker = null, landmarkerPromise = null;
 
 // ---------- Hilfen ----------
@@ -49,6 +47,7 @@ const store = {
 
 function show(view) {
   for (const id of ['setup', 'live', 'results']) $(id).hidden = id !== view;
+  document.body.classList.toggle('busy', view === 'live');
   window.scrollTo(0, 0);
 }
 function banner(text, cls = '') {
@@ -145,22 +144,8 @@ function initSetup() {
   };
 
   renderStyleSeg();
-  const renderDur = () => {
-    const long = prefs.kind === 'fatigue';
-    segment($('durSeg'),
-      (long ? [20, 40, 60, 90] : [30, 45, 60]).map((v) => ({ value: v, label: long ? `${v} min` : `${v} s` })),
-      () => (long ? prefs.longMin : prefs.duration),
-      (v) => { prefs[long ? 'longMin' : 'duration'] = v; store.set(SETTINGS_KEY, prefs); });
-    $('kindHint').textContent = long
-      ? 'Die App läuft während deiner ganzen Einheit mit, misst jede Minute 20 Sekunden lang und zeigt am Ende, wie sich deine Haltung mit der Ermüdung verändert. Handy ans Ladegerät, Bildschirm bleibt an.'
-      : 'Kurze Messung deiner Gelenkwinkel mit Empfehlungen für Sattel und Cockpit.';
-  };
-  if (!['check', 'fatigue'].includes(prefs.kind)) prefs.kind = 'check';
-  segment($('kindSeg'), [
-    { value: 'check', label: 'Kurzcheck', sub: 'Sitzt du richtig?' },
-    { value: 'fatigue', label: 'Ermüdungs-Check', sub: 'Hältst du die Position?' },
-  ], () => prefs.kind, (v) => { prefs.kind = v; store.set(SETTINGS_KEY, prefs); renderDur(); });
-  renderDur();
+  segment($('durSeg'), [30, 45, 60].map((v) => ({ value: v, label: `${v} s` })),
+    () => prefs.duration, (v) => { prefs.duration = v; store.set(SETTINGS_KEY, prefs); });
   for (const id of ['height', 'inseam']) {
     $(id).value = prefs[id];
     $(id).oninput = () => { prefs[id] = $(id).value; store.set(SETTINGS_KEY, prefs); };
@@ -215,7 +200,6 @@ function resetRecording() {
   state.snapshot = null;
   state.snapshotKnee = 0;
   state.lastVideoTime = -1;
-  state.long = { cur: -1, windows: [], first: null, measuring: false, clip: null, firstClip: null, lastClip: null };
   state.clip = null;
   $('progressBar').style.width = '0';
 }
@@ -232,7 +216,6 @@ async function start(mode, file) {
   state.mode = mode;
   show('live');
   $('switchBtn').hidden = mode !== 'camera';
-  $('finishBtn').hidden = !isLong();
   banner('Modell wird geladen …');
   try {
     if (mode === 'camera') {
@@ -302,26 +285,13 @@ function loop() {
       state.phase = 'record';
       state.recStart = now;
       state.samples = [];
-      if (!isLong()) state.clip = startClip();
+      state.clip = startClip();
       say('Los');
     } else {
       banner(String(left), 'big');
     }
   }
-  if (state.phase === 'record' && isLong()) {
-    // Ermüdungs-Check: jede Minute ein kurzes Messfenster, dazwischen ruht die Erkennung
-    const L = state.long, total = prefs.longMin * 60000, elapsed = now - state.recStart;
-    const win = Math.floor(elapsed / WINDOW.periodMs);
-    const inBurst = elapsed - win * WINDOW.periodMs < WINDOW.burstMs;
-    if (elapsed >= total) return finish();
-    if (inBurst && L.cur !== win) { L.cur = win; state.samples = []; L.clip = startClip(); }
-    if (!inBurst && L.cur !== -1) closeWindow();
-    L.measuring = inBurst;
-    const rest = Math.ceil((total - elapsed) / 1000);
-    $('progressBar').style.width = `${(elapsed / total) * 100}%`;
-    $('hudTime').textContent = `${Math.floor(rest / 60)}:${String(rest % 60).padStart(2, '0')}`;
-    banner(`Minute ${win + 1} von ${prefs.longMin} · ${inBurst ? '● misst' : 'Pause'}`, inBurst ? 'rec' : '');
-  } else if (state.phase === 'record') {
+  if (state.phase === 'record') {
     const total = state.mode === 'file' ? (video.duration || 1) * 1000 : prefs.duration * 1000;
     const elapsed = state.mode === 'file' ? video.currentTime * 1000 : now - state.recStart;
     $('progressBar').style.width = `${Math.min(100, (elapsed / total) * 100)}%`;
@@ -337,7 +307,6 @@ function loop() {
   const w = video.videoWidth, h = video.videoHeight;
   if (canvas.width !== w || canvas.height !== h) { canvas.width = w; canvas.height = h; }
   ctx.drawImage(video, 0, 0, w, h);
-  if (state.phase === 'record' && isLong() && !state.long.measuring) return;
 
   const lms = landmarker.detectForVideo(video, now).landmarks?.[0];
   if (!lms) {
@@ -360,7 +329,7 @@ function loop() {
   if (state.phase === 'record') {
     state.samples.push({ t: now, vt: state.mode === 'file' ? video.currentTime * 1000 : null, left, right, span: Math.abs(left.shoulder.x - right.shoulder.x) });
     // Standbild im Moment der größten Kniestreckung merken
-    if (visible && coreVisibility(p) >= 0.7 && angles.knee < 172 && angles.knee > state.snapshotKnee + 0.5 && !state.long.first) {
+    if (visible && coreVisibility(p) >= 0.7 && angles.knee < 172 && angles.knee > state.snapshotKnee + 0.5) {
       state.snapshotKnee = angles.knee;
       state.snapshot = smallSnapshot();
     }
@@ -407,68 +376,37 @@ function clipFrames(samples, side, t0) {
   })).filter((f) => f.t >= 0);
 }
 
-/** Schließt das Messfenster der laufenden Minute ab und behält nur das Ergebnis. */
-function closeWindow() {
-  const L = state.long, clip = L.clip, minute = L.cur + 1;
-  const r = analyzeSession(state.samples, settings());
-  L.windows.push(windowFromResult(minute, r));
-  stopClip(clip);
-  if (r.ok && clip) {
-    // Video der ersten und der jeweils letzten auswertbaren Minute behalten
-    const entry = { minute, done: clip.done, frames: clipFrames(state.samples, r.side, clip.t0) };
-    if (!L.firstClip) L.firstClip = entry; else L.lastClip = entry;
-  }
-  if (!L.first && r.ok) L.first = r;
-  state.samples = [];
-  L.cur = -1;
-  L.clip = null;
-}
-
 async function finish() {
   if (state.phase !== 'record') return;
-  const long = isLong(), mode = state.mode;
-  if (long && state.long.cur !== -1 && state.samples.length >= 150) closeWindow();
-  const samples = state.samples, snapshot = state.snapshot, L = state.long, clip = state.clip, file = state.file;
+  state.phase = 'finishing';
+  const mode = state.mode, samples = state.samples, snapshot = state.snapshot, clip = state.clip, file = state.file;
   const w = canvas.width, h = canvas.height;
+  banner('Auswertung …');
+  const record = buildRecord(analyzeSession(samples, settings()), snapshot);
+  const result = record.result;
+  record.clips = [];
+
+  // Aufnahme sauber abschließen, bevor die Kamera gestoppt wird. Nie länger als ein paar Sekunden warten.
+  const within = (promise, ms) => Promise.race([promise, new Promise((r) => setTimeout(() => r(null), ms))]);
   stopClip(clip);
-  stopClip(L.clip);
+  const blob = mode === 'file' ? file : clip ? await within(clip.done, 4000) : null;
   stopMedia();
   if (mode === 'camera') say('Messung beendet.');
-  const result = long
-    ? L.first ?? { ok: false, reason: 'In keiner Minute konnte die Tretbewegung sauber erkannt werden. Bitte Aufstellung und Licht prüfen.' }
-    : analyzeSession(samples, settings());
-  const record = buildRecord(result, snapshot);
-  if (long) record.fatigue = { plannedMin: prefs.longMin, windows: L.windows };
 
-  // Videos zusammenstellen und auf dem Gerät ablegen
-  const clips = [];
-  if (long) {
-    if (L.firstClip) clips.push({ ...L.firstClip, label: `Beginn der Einheit · Minute ${L.firstClip.minute}` });
-    if (L.lastClip) clips.push({ ...L.lastClip, label: `Ende der Einheit · Minute ${L.lastClip.minute}` });
-  } else if (result.ok && (mode === 'file' || clip)) {
-    clips.push({
-      label: 'Deine Messung',
-      done: mode === 'file' ? Promise.resolve(file) : clip.done,
-      frames: clipFrames(samples, result.side ?? pickSide(samples), clip?.t0 ?? 0),
-    });
-  }
-  record.clips = [];
-  for (const [i, c] of clips.entries()) {
-    const blob = await c.done;
-    if (!blob || !c.frames.length) continue;
-    const id = `${record.date}-${i}`;
-    try {
-      await putClip({ id, label: c.label, blob, frames: c.frames, w, h });
-      record.clips.push({ id, label: c.label });
-    } catch { /* Speicher voll oder nicht verfügbar: Messung ohne Video */ }
+  if (result.ok && blob) {
+    const frames = clipFrames(samples, result.side ?? pickSide(samples), clip?.t0 ?? 0);
+    const id = `${record.date}-0`;
+    const saved = frames.length && await within(
+      putClip({ id, label: 'Deine Messung', blob, frames, w, h }).then(() => true, () => false), 4000);
+    if (saved) record.clips.push({ id, label: 'Deine Messung' });
   }
 
   const previous = loadHistory()[0] ?? null;
-  if (record.result.ok) {
+  if (result.ok) {
     const list = [record, ...loadHistory()].slice(0, 12);
     saveHistory(list);
     // Videos nur für die vier neuesten Messungen behalten
-    pruneClips(list.filter((r) => r.clips?.length).slice(0, 4).flatMap((r) => r.clips.map((c) => c.id)));
+    pruneClips(list.filter((r) => r.clips?.length).slice(0, 4).flatMap((r) => r.clips.map((c) => c.id))).catch(() => {});
   }
   showRecord(record, { previous });
 }
@@ -578,7 +516,7 @@ const badge = (status) => {
   return b;
 };
 
-function ringCard(score, title, text, eyebrow = null) {
+function scoreCard(ev) {
   const card = el('section', 'card scorecard');
   const ring = el('div', 'ring');
   const svg = svgEl('svg', { viewBox: '0 0 120 120', 'aria-hidden': 'true' }, ring);
@@ -586,128 +524,18 @@ function ringCard(score, title, text, eyebrow = null) {
   svgEl('circle', { cx: 60, cy: 60, r: 52, fill: 'none', stroke: '#d6d1c6', 'stroke-width': 1.5 }, svg);
   svgEl('circle', {
     cx: 60, cy: 60, r: 52, fill: 'none', stroke: '#111110', 'stroke-width': 3.5, 'stroke-linecap': 'butt',
-    'stroke-dasharray': `${(C * Math.max(0, score)) / 100} ${C}`,
+    'stroke-dasharray': `${(C * Math.max(0, ev.score)) / 100} ${C}`,
   }, svg);
   const num = el('div', 'num');
-  num.append(el('b', null, String(score)), el('small', null, 'von 100'));
+  num.append(el('b', null, String(ev.score)), el('small', null, 'von 100'));
   ring.append(num);
+  const open = ev.items.filter((i) => i.status !== 'ok').length;
   const txt = el('div');
-  if (eyebrow) txt.append(el('div', 'eyebrow', eyebrow));
-  txt.append(el('h1', null, title), el('p', null, text));
+  txt.append(el('h1', null, ev.verdict), el('p', null,
+    open ? `${open} von ${ev.items.length} Werten liegen außerhalb des Zielbereichs für „${STYLES[ev.style].label}“.`
+      : `Alle ${ev.items.length} Werte liegen im Zielbereich für „${STYLES[ev.style].label}“.`));
   card.append(ring, txt);
   return card;
-}
-
-function scoreCard(ev) {
-  const open = ev.items.filter((i) => i.status !== 'ok').length;
-  return ringCard(ev.score, ev.verdict,
-    open ? `${open} von ${ev.items.length} Werten liegen außerhalb des Zielbereichs für „${STYLES[ev.style].label}“.`
-      : `Alle ${ev.items.length} Werte liegen im Zielbereich für „${STYLES[ev.style].label}“.`);
-}
-
-// ---------- Ermüdungs-Check: Bericht ----------
-function trendChart(tr) {
-  const card = el('section', 'card trend');
-  const head = el('div', 'trendhead');
-  const sign = tr.drift > 0 ? '+' : '';
-  head.append(el('h2', null, tr.label), el('span', null, `${sign}${de(tr.drift, tr.digits ?? 1)}${tr.unit}`));
-  const wrap = el('div', 'chartwrap');
-  const W = 340, H = 124, L = 30, R = 42, T = 10, B = 20;
-  const svg = svgEl('svg', { viewBox: `0 0 ${W} ${H}`, role: 'img', 'aria-label': `Verlauf ${tr.label} über die Einheit` }, wrap);
-  const pts = tr.points, vals = pts.map((p) => p.value);
-  const lo = Math.min(...vals, tr.base - tr.notable), hi = Math.max(...vals, tr.base + tr.notable);
-  const pad = (hi - lo) * 0.12 || 1, yMin = lo - pad, yMax = hi + pad;
-  const m0 = pts[0].minute, m1 = pts[pts.length - 1].minute;
-  const x = (m) => L + ((m - m0) / (m1 - m0 || 1)) * (W - L - R);
-  const y = (v) => T + (1 - (v - yMin) / (yMax - yMin)) * (H - T - B);
-  const text = (str, tx, ty, anchor = 'middle', fill = '#77736b') => {
-    const t = svgEl('text', { x: tx, y: ty, 'text-anchor': anchor, fill, 'font-size': 8.5, 'font-family': 'Helvetica Neue, Helvetica, Arial, sans-serif' }, svg);
-    t.textContent = str;
-    return t;
-  };
-  // Band: Schwankung, die noch als unverändert gilt
-  svgEl('rect', { x: L, width: W - L - R, y: y(tr.base + tr.notable), height: y(tr.base - tr.notable) - y(tr.base + tr.notable), fill: '#111110', opacity: 0.06 }, svg);
-  svgEl('line', { x1: L, x2: W - R, y1: y(tr.base), y2: y(tr.base), stroke: '#a39e94', 'stroke-width': 1, 'stroke-dasharray': '2 3' }, svg);
-  text(de(tr.base, tr.digits ?? 1), L - 5, y(tr.base) + 3, 'end');
-  svgEl('line', { x1: L, x2: W - R, y1: H - B, y2: H - B, stroke: '#d6d1c6', 'stroke-width': 1 }, svg);
-  text(`Min. ${m0}`, L, H - 6, 'start');
-  text(`${m1}`, W - R, H - 6, 'end');
-  if (tr.onset) {
-    svgEl('line', { x1: x(tr.onset), x2: x(tr.onset), y1: T, y2: H - B, stroke: '#a8553a', 'stroke-width': 1 }, svg);
-    text(`ab Min. ${tr.onset}`, x(tr.onset) - 4, T + 7, 'end', '#a8553a');
-  }
-  svgEl('polyline', {
-    points: pts.map((p) => `${x(p.minute).toFixed(1)},${y(p.value).toFixed(1)}`).join(' '),
-    fill: 'none', stroke: '#111110', 'stroke-width': 1.6, 'stroke-linejoin': 'round', 'stroke-linecap': 'round',
-  }, svg);
-  const last = pts[pts.length - 1];
-  svgEl('circle', { cx: x(last.minute), cy: y(last.value), r: 3.5, fill: '#111110', stroke: '#f3f1ec', 'stroke-width': 2 }, svg);
-  const endLabel = text(`${de(tr.end, tr.digits ?? 1)}${tr.unit.trim() === '°' ? '°' : ''}`, W - R + 7, y(last.value) + 3, 'start', '#111110');
-  endLabel.setAttribute('font-weight', 600);
-
-  const cross = svgEl('line', { y1: T, y2: H - B, stroke: '#77736b', 'stroke-width': 1, visibility: 'hidden' }, svg);
-  const dot = svgEl('circle', { r: 3.5, fill: '#a8553a', stroke: '#f3f1ec', 'stroke-width': 2, visibility: 'hidden' }, svg);
-  const tip = el('div', 'tooltip');
-  tip.hidden = true;
-  wrap.append(tip);
-  const move = (e) => {
-    const box = svg.getBoundingClientRect();
-    const fx = ((e.clientX - box.left) / box.width) * W;
-    const p = pts.reduce((a, c) => (Math.abs(x(c.minute) - fx) < Math.abs(x(a.minute) - fx) ? c : a));
-    cross.setAttribute('x1', x(p.minute)); cross.setAttribute('x2', x(p.minute));
-    dot.setAttribute('cx', x(p.minute)); dot.setAttribute('cy', y(p.value));
-    cross.setAttribute('visibility', 'visible'); dot.setAttribute('visibility', 'visible');
-    tip.hidden = false;
-    tip.replaceChildren(`Minute ${p.minute}: `, el('b', null, `${de(p.value, tr.digits ?? 1)}${tr.unit}`));
-    tip.style.left = `${Math.max(20, Math.min(80, (x(p.minute) / W) * 100))}%`;
-  };
-  const leave = () => { tip.hidden = true; cross.setAttribute('visibility', 'hidden'); dot.setAttribute('visibility', 'hidden'); };
-  svg.addEventListener('pointermove', move);
-  svg.addEventListener('pointerdown', move);
-  svg.addEventListener('pointerleave', leave);
-  card.append(head, wrap);
-  return card;
-}
-
-/** Liefert die Bausteine des Ermüdungs-Berichts und ob es bewertete Befunde gibt. */
-function fatigueSection(fat) {
-  const sum = summarizeFatigue(fat.windows);
-  if (!sum.ok) {
-    const card = el('section', 'card');
-    card.append(el('h2', null, 'Verlauf nicht auswertbar'), el('p', 'hint', sum.reason));
-    return { nodes: [card], hasFindings: false };
-  }
-  const nodes = [ringCard(sum.score, sum.verdict,
-    `Haltungsstabilität über ${sum.minutes} Minuten, ${sum.validMinutes} davon auswertbar. Verglichen wird der Beginn der Einheit mit ihrem Ende.`,
-    'Ermüdungs-Check')];
-  const scored = sum.findings.filter((f) => f.scored);
-  if (scored.length) {
-    const top = el('section', 'card topcard');
-    const f = scored[0];
-    top.append(el('div', 'eyebrow', f.onset ? `Größte Veränderung · ab Minute ${f.onset}` : 'Größte Veränderung'), el('h2', null, f.title), el('p', null, f.tip));
-    nodes.push(top);
-  }
-  nodes.push(el('div', 'group', 'Verlauf über die Einheit'));
-  for (const tr of sum.tracks) nodes.push(trendChart(tr));
-  nodes.push(el('p', 'chartsub', 'Gestrichelt: dein Wert zu Beginn. Graues Band: Schwankung, die noch als unverändert gilt.'));
-
-  nodes.push(el('div', 'group', 'Was sich verändert hat'));
-  if (!sum.findings.length) {
-    nodes.push(infoCard('✓', 'Keine nennenswerte Veränderung', 'Du hast deine Position über die ganze Einheit gehalten. Die Einstellung passt offenbar auch unter Ermüdung.'));
-  }
-  for (const f of sum.findings) {
-    const card = el('section', 'card item');
-    const head = el('div', 'head');
-    const left = el('div');
-    const b = el('span', `badge ${!f.scored ? 'info' : f.level === 'strong' ? 'bad' : 'warn'}`);
-    b.append(el('span', null, !f.scored ? 'Zur Einordnung' : f.level === 'strong' ? 'Deutlich' : 'Spürbar'));
-    left.append(el('div', 'label', f.title),
-      el('div', 'sub', `Von ${de(f.base, f.digits)} auf ${de(f.end, f.digits)}${f.unit}${f.onset ? ` · ab Minute ${f.onset}` : ''}`), b);
-    head.append(left, el('div', 'value', `${f.drift > 0 ? '+' : ''}${de(f.drift, f.digits)}${f.unit}`));
-    card.append(head, el('p', 'tip', f.tip));
-    nodes.push(card);
-  }
-  return { nodes, hasFindings: scored.length > 0 };
 }
 
 function statTiles(result, stab) {
@@ -879,13 +707,8 @@ function showRecord(rec, { previous = null, demo = false, stored = false } = {})
   const ev = evaluate(result, rec.style, bike);
   const stab = result.extras ? stability(result.extras) : null;
 
-  let fat = null;
-  if (rec.fatigue) {
-    fat = fatigueSection(rec.fatigue);
-    body.append(...fat.nodes, el('div', 'group', 'Deine Position zu Beginn der Einheit'));
-  }
   body.append(scoreCard(ev), statTiles(result, stab));
-  if (ev.top && !fat?.hasFindings) {
+  if (ev.top) {
     const top = el('section', 'card topcard');
     top.append(el('div', 'eyebrow', 'Wichtigste Anpassung'), el('h2', null, ev.top.action), el('p', null, ev.top.tip));
     body.append(top);
@@ -958,7 +781,7 @@ function renderHistory() {
     row.type = 'button';
     const d = new Date(h.date).toLocaleString('de-DE', { dateStyle: 'short', timeStyle: 'short' });
     const mid = el('div', null, h.bike ?? 'Messung');
-    mid.append(el('small', null, `${d} · ${h.fatigue ? 'Ermüdungs-Check' : STYLES[h.style]?.label ?? ''}`));
+    mid.append(el('small', null, `${d} · ${STYLES[h.style]?.label ?? ''}`));
     row.append(el('div', 'sc', h.score != null ? String(h.score) : '–'), mid,
       el('div', 'r', `Knie ${de(h.metrics.kneeExt)}°`), el('div', 'go', '→'));
     row.setAttribute('aria-label', `Messung vom ${d} öffnen`);
@@ -976,10 +799,8 @@ $('fileInput').onchange = (e) => {
 };
 $('demoBtn').onclick = () => {
   const rec = buildRecord(analyzeSession(syntheticSession({ saddleHeight: 73, torsoDeg: 41 }), settings()));
-  if (prefs.kind === 'fatigue') rec.fatigue = { plannedMin: prefs.longMin, windows: syntheticFatigueWindows(prefs.longMin) };
   showRecord(rec, { demo: true });
 };
-$('finishBtn').onclick = finish;
 $('cancelBtn').onclick = () => { stopMedia(); renderHistory(); show('setup'); };
 $('againBtn').onclick = () => { renderHistory(); show('setup'); };
 $('switchBtn').onclick = async () => {
@@ -988,13 +809,11 @@ $('switchBtn').onclick = async () => {
 };
 document.addEventListener('visibilitychange', () => {
   if (!document.hidden || state.phase === 'idle') return;
-  // Eine laufende lange Messung nicht verwerfen, sondern mit dem bisherigen Stand auswerten
-  if (state.phase === 'record' && isLong() && state.long.windows.length) return finish();
   stopMedia(); renderHistory(); show('setup');
 });
 
 initSetup();
 initHero($('heroSvg'),
   () => ({ style: prefs.style, bike: findBike(prefs.bike) }),
-  () => !$('setup').hidden && !document.hidden);
+  () => $('setup').offsetParent !== null && !document.hidden);
 renderHistory();

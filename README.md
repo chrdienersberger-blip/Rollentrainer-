@@ -1,17 +1,21 @@
-# Rollentrainer – Sitzposition prüfen
+# Sitzcheck – Training und Bike-Fitting auf dem Rollentrainer
 
-Web-App, die per Handykamera die Sitzposition auf dem Rollentrainer analysiert.
-Das Handy steht seitlich neben dem Rad, die App erkennt die Gelenke (MediaPipe Pose),
-misst die Winkel über viele Kurbelumdrehungen und gibt Empfehlungen zu Sattelhöhe,
-Sattelversatz, Lenkerhöhe und Sitzlänge.
+Web-App mit drei Bereichen, erreichbar über die Menüleiste links:
 
-Zwei Messarten:
+- **Training:** Smart Trainer per Bluetooth (FTMS) verbinden und strukturierte
+  Workouts im ERG-Modus oder Strecken mit simulierter Steigung fahren. Auswertung
+  mit Normalized Power und TSS, Export als TCX. Ein Demo-Trainer erlaubt das
+  Ausprobieren ohne Gerät.
+- **Bike-Fitting:** Das Handy steht seitlich neben dem Rad, die App erkennt die
+  Gelenke (MediaPipe Pose), misst die Winkel über viele Kurbelumdrehungen und gibt
+  Empfehlungen zu Sattelhöhe, Sattelversatz, Cockpit-Höhe und Sitzlänge. Das Video
+  der Messung lässt sich mit farbiger Umrandung wieder ansehen.
+- **Marketplace:** Verzeichnis von Herstellern, Bekleidungsmarken und Händlern.
 
-- **Kurzcheck** (30–60 s): Gelenkwinkel mit Empfehlungen für Sattel und Cockpit.
-- **Ermüdungs-Check** (20–90 min): läuft während der ganzen Einheit mit, misst jede
-  Minute 20 Sekunden lang und zeigt, wie sich die Haltung mit der Ermüdung verändert.
+Videos und Messwerte werden ausschließlich im Browser auf dem Gerät verarbeitet.
 
-Das Video wird ausschließlich im Browser auf dem Gerät verarbeitet.
+Web-Bluetooth gibt es in Chrome und Edge (Android, Windows, macOS), nicht in
+Safari auf iPhone und iPad.
 
 ## Benutzen
 
@@ -29,11 +33,16 @@ Danach ist die App unter `https://<benutzer>.github.io/<repo>/` erreichbar.
 | Datei | Inhalt |
 |---|---|
 | `index.html`, `style.css` | Oberfläche |
-| `js/app.js` | Kamera, Pose-Erkennung, Ablauf, Anzeige |
+| `js/shell.js` | Menüleiste, Wechsel zwischen den Bereichen |
+| `js/training.js` | Trainingsbereich: Übersicht, Fahrt, Auswertung |
+| `js/trainer.js` | Bluetooth-Verbindung zum Trainer, Demo-Trainer |
+| `js/ftms.js` | Trainer-Protokoll (FTMS, Leistungsmesser, Puls) |
+| `js/workouts.js` | Workouts, Strecken, Fahrphysik, Kennzahlen, TCX |
+| `js/market.js` | Marketplace-Verzeichnis |
+| `js/app.js` | Bike-Fitting: Kamera, Pose-Erkennung, Ablauf, Anzeige |
 | `js/analysis.js` | Winkelberechnung, Erkennung der Tretzyklen |
 | `js/overlay.js` | Farbige Umrandung der Person im aufgezeichneten Video |
 | `js/clips.js` | Ablage der Videos in der IndexedDB des Browsers |
-| `js/fatigue.js` | Ermüdungs-Check: Verlauf, Drift und Befunde über die Einheit |
 | `js/evaluate.js` | Zielbereiche je Sitzziel, Punktzahl und Empfehlungstexte |
 | `js/bikes.js` | Fahrradauswahl (Marke/Modell → Kategorie) |
 | `js/hero.js` | Animierte Startgrafik (Fahrer und Rad-Silhouette je Typ) |
@@ -50,3 +59,9 @@ npm test
 Die Messgenauigkeit liegt bei etwa ±3–5°. Aus der Seitenansicht sind seitliche
 Kniebewegungen und die Cleat-Stellung nicht erkennbar. Die Zielbereiche sind
 Richtwerte und ersetzen kein professionelles Bikefitting.
+
+## Versionen
+
+Alle Programmteile werden mit `?v=N` geladen. Bei jeder Veröffentlichung muss N
+überall gleichzeitig erhöht werden (in `index.html` und in den Importen unter
+`js/`), sonst mischt der Browser alte und neue Dateien aus dem Zwischenspeicher.
