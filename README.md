@@ -17,6 +17,10 @@ Videos und Messwerte werden ausschließlich im Browser auf dem Gerät verarbeite
 Web-Bluetooth gibt es in Chrome und Edge (Android, Windows, macOS), nicht in
 Safari auf iPhone und iPad.
 
+## iPhone-App
+
+Für Bluetooth auf dem iPhone gibt es eine App-Hülle. Einrichtung: siehe [APP.md](APP.md).
+
 ## Benutzen
 
 Die App besteht nur aus statischen Dateien und braucht keinen Build-Schritt.

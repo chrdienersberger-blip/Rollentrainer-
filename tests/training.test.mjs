@@ -132,3 +132,63 @@ test('Zonen: Leistung, Herzfrequenz, Trittfrequenz', () => {
   assert.equal(judge(200, [190, 210]), 'ok');
   assert.equal(judge(230, [190, 210]), 'high');
 });
+
+test('Trainer: Verbindung, Messwerte und Steuerbefehle über einen nachgestellten Funkweg', async () => {
+  const { Trainer } = await import('../js/trainer.js');
+  const sent = [], listeners = new Map();
+  let dropped = null;
+  const fake = {
+    pick: async ({ all, heartRate } = {}) => ({ name: heartRate ? 'TICKR' : all ? 'Irgendwas' : 'KICKR CORE 1234' }),
+    open: async (h, onDisconnect) => { dropped = onDisconnect; },
+    listen: async (h, service, characteristic, cb) => { listeners.set(`${service.toString(16)}/${characteristic.toString(16)}`, cb); },
+    send: async (h, service, characteristic, bytes) => { sent.push([...bytes]); },
+    close: () => {},
+  };
+  let changes = 0;
+  const t = new Trainer(() => changes++, fake);
+  await t.connectBluetooth();
+  assert.equal(t.connected, true);
+  assert.equal(t.name, 'KICKR CORE 1234');
+  assert.equal(t.controllable, true);
+  assert.deepEqual(sent, [[0x00], [0x07]]);                 // Kontrolle anfordern, starten
+  // Trainer meldet 36 km/h, 90 U/min, 250 W
+  listeners.get('1826/2ad2')(new DataView(Uint8Array.from([0x44, 0x00, 0x10, 0x0e, 0xb4, 0x00, 0xfa, 0x00]).buffer));
+  assert.equal(t.data.power, 250);
+  assert.equal(t.data.cadence, 90);
+  t.setTargetPower(180); t.setGrade(3);
+  await t.queue;
+  assert.deepEqual(sent[2], [0x05, 180, 0]);
+  assert.equal(sent[3][0], 0x11);
+  await t.connectHeartRate();
+  listeners.get('180d/2a37')(new DataView(Uint8Array.from([0x00, 142]).buffer));
+  assert.equal(t.hrName, 'TICKR');
+  assert.equal(t.data.hr, 142);
+  assert.ok(changes > 3);
+});
+
+test('Trainer: ohne FTMS als reiner Leistungsmesser, Abbruch der Verbindung', async () => {
+  const { Trainer } = await import('../js/trainer.js');
+  const listeners = new Map();
+  let dropped = null;
+  const fake = {
+    pick: async () => ({ name: 'Powermeter' }),
+    open: async (h, onDisconnect) => { dropped = onDisconnect; },
+    listen: async (h, service, characteristic, cb) => {
+      if (service === 0x1826) { const e = new Error('kein Dienst'); e.name = 'NotFoundError'; throw e; }
+      listeners.set(characteristic, cb);
+    },
+    send: async () => { throw new Error('darf nicht senden'); },
+    close: () => {},
+  };
+  const t = new Trainer(() => {}, fake);
+  await t.connectBluetooth();
+  assert.equal(t.connected, true);
+  assert.equal(t.controllable, false);
+  assert.match(t.log.join(' '), /FTMS: nein/);
+  listeners.get(0x2a63)(new DataView(Uint8Array.from([0x00, 0x00, 0xc8, 0x00]).buffer));
+  assert.equal(t.data.power, 200);
+  t.setTargetPower(150);                                    // ohne Steuerung: kein Fehler, kein Senden
+  await t.queue;
+  dropped();
+  assert.equal(t.connected, false);
+});

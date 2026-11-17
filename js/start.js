@@ -1,8 +1,8 @@
 // Startseite: Überblick über die drei Bereiche, mit gezeichneten Grafiken.
 
-import { initHero, buildBike } from './hero.js?v=13';
-import { findBike } from './bikes.js?v=13';
-import { WORKOUTS, ROUTES, workoutDuration, routeLength } from './workouts.js?v=13';
+import { initHero, buildBike } from './hero.js?v=14';
+import { findBike } from './bikes.js?v=14';
+import { WORKOUTS, ROUTES, workoutDuration, routeLength } from './workouts.js?v=14';
 
 const SVGNS = 'http://www.w3.org/2000/svg';
 const INK = '#111110', PANEL = '#e4dfd5', MUTED = '#77736b', ACCENT = '#a8553a', GRID = '#d3cdc1';
@@ -170,5 +170,5 @@ export function renderStart(root) {
     root.append(last);
   }
   root.append(el('p', 'note', 'Alle Daten bleiben auf deinem Gerät. Die Grafiken sind gezeichnet; die Bike-Fitting-Messung ist eine Orientierung und ersetzt kein professionelles Bikefitting.'),
-    el('p', 'note ver', 'Antritt · Version 13'));
+    el('p', 'note ver', 'Antritt · Version 14'));
 }

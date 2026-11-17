@@ -1,12 +1,61 @@
-// Verbindung zum Smart Trainer per Web Bluetooth (FTMS), mit Demo-Trainer zum Ausprobieren.
+// Verbindung zum Smart Trainer per Bluetooth (FTMS), mit Demo-Trainer zum Ausprobieren.
+// Zwei Wege zum Funkchip: im Browser Web Bluetooth, in der iPhone-App die eingebaute
+// Bluetooth-Technik des Geräts (siehe app/native-ble.js). Beide bieten dieselben fünf Funktionen.
 
-import { UUID, parseIndoorBikeData, parseCyclingPower, parseHeartRate, cmdRequestControl, cmdStart, cmdTargetPower, cmdSimulation } from './ftms.js?v=13';
+import { UUID, parseIndoorBikeData, parseCyclingPower, parseHeartRate, cmdRequestControl, cmdStart, cmdTargetPower, cmdSimulation } from './ftms.js?v=14';
 
-export const bluetoothAvailable = () => !!navigator.bluetooth;
+const isNativeApp = () => !!globalThis.Capacitor?.isNativePlatform?.();
+export const bluetoothAvailable = () => isNativeApp() || !!globalThis.navigator?.bluetooth;
+
+const NAMES = ['KICKR', 'Wahoo', 'Tacx', 'Elite', 'Zwift', 'Saris', 'Direto', 'Suito'];
+
+/** Web Bluetooth (Chrome, Edge und Spezial-Browser). */
+const webBle = {
+  async pick({ all = false, heartRate = false } = {}) {
+    const optionalServices = [UUID.ftms, UUID.power, UUID.heartRate];
+    const device = await navigator.bluetooth.requestDevice(
+      heartRate ? { filters: [{ services: [UUID.heartRate] }] }
+        : all ? { acceptAllDevices: true, optionalServices }
+          : { filters: [{ services: [UUID.ftms] }, { services: [UUID.power] }, ...NAMES.map((namePrefix) => ({ namePrefix }))], optionalServices });
+    return { name: device.name, device, chars: new Map() };
+  },
+  async open(h, onDisconnect) {
+    h.device.addEventListener('gattserverdisconnected', onDisconnect);
+    try { h.server = await h.device.gatt.connect(); } catch {
+      // der erste Versuch scheitert auf manchen Geräten
+      await new Promise((r) => setTimeout(r, 800));
+      h.server = await h.device.gatt.connect();
+    }
+  },
+  async char(h, service, characteristic) {
+    const key = `${service}/${characteristic}`;
+    if (!h.chars.has(key)) h.chars.set(key, await (await h.server.getPrimaryService(service)).getCharacteristic(characteristic));
+    return h.chars.get(key);
+  },
+  async listen(h, service, characteristic, cb) {
+    const ch = await this.char(h, service, characteristic);
+    ch.addEventListener('characteristicvaluechanged', (e) => cb(e.target.value));
+    await ch.startNotifications();
+  },
+  async send(h, service, characteristic, bytes) {
+    const ch = await this.char(h, service, characteristic);
+    // ältere Web-Bluetooth-Umsetzungen kennen nur writeValue
+    return ch.writeValueWithResponse ? ch.writeValueWithResponse(bytes) : ch.writeValue(bytes);
+  },
+  close(h) { try { h.device.gatt?.disconnect(); } catch { /* schon getrennt */ } },
+};
+
+async function defaultTransport() {
+  if (!isNativeApp()) return webBle;
+  // wird nur in der App geladen; die Datei entsteht beim Bauen der App
+  return (await import('./native-ble.js')).nativeBle;
+}
 
 export class Trainer {
-  constructor(onChange) {
+  /** transport: nur für Tests – sonst wird der passende Weg selbst gewählt. */
+  constructor(onChange, transport = null) {
     this.onChange = onChange;         // wird bei jeder Status- oder Datenänderung aufgerufen
+    this.transport = transport;
     this.kind = null;                 // 'ble' | 'demo'
     this.name = '';
     this.controllable = false;        // kann Zielleistung/Steigung annehmen
@@ -15,81 +64,63 @@ export class Trainer {
     this.queue = Promise.resolve();
     this.target = null;
     this.grade = 0;
+    this.log = [];
   }
   get connected() { return !!this.kind; }
 
   // ---------- Bluetooth ----------
   /** all = true zeigt alle Bluetooth-Geräte in der Nähe – falls der Trainer in der gefilterten Liste fehlt. */
   async connectBluetooth(all = false) {
-    const optionalServices = [UUID.ftms, UUID.power, UUID.heartRate];
-    const device = await navigator.bluetooth.requestDevice(all ? { acceptAllDevices: true, optionalServices } : {
-      filters: [{ services: [UUID.ftms] }, { services: [UUID.power] },
-        ...['KICKR', 'Wahoo', 'Tacx', 'Elite', 'Zwift', 'Saris', 'Direto', 'Suito'].map((namePrefix) => ({ namePrefix }))],
-      optionalServices,
-    });
+    const ble = this.transport ?? await defaultTransport();
+    const h = await ble.pick({ all });
     this.disconnect();
     this.log = [];
-    const server = await this.gatt(device);
-    device.addEventListener('gattserverdisconnected', () => { if (this.device === device) this.reset(); });
-    this.device = device;
-    this.name = device.name || 'Smart Trainer';
+    await ble.open(h, () => { if (this.handle === h) this.reset(); });
+    this.ble = ble;
+    this.handle = h;
+    this.name = h.name || 'Smart Trainer';
     let ok = false;
     try {
-      const ftms = await server.getPrimaryService(UUID.ftms);
-      const bike = await ftms.getCharacteristic(UUID.indoorBikeData);
-      bike.addEventListener('characteristicvaluechanged', (e) => this.push(parseIndoorBikeData(e.target.value)));
-      await bike.startNotifications();
+      await ble.listen(h, UUID.ftms, UUID.indoorBikeData, (dv) => this.push(parseIndoorBikeData(dv)));
       ok = true;
       try {
-        this.cp = await ftms.getCharacteristic(UUID.controlPoint);
-        await this.cp.startNotifications();          // Antworten des Trainers müssen abonniert sein
+        await ble.listen(h, UUID.ftms, UUID.controlPoint, () => {});   // Antworten des Trainers müssen abonniert sein
+        this.cp = true;
         await this.write(cmdRequestControl());
         await this.write(cmdStart());
-        this.controllable = true;
-        this.log.push('Steuerung: ja');
-      } catch (err) { this.cp = null; this.log.push(`Steuerung: nein (${err?.name ?? err})`); }
+        this.controllable = !this.lastWriteError;
+        this.log.push(this.controllable ? 'Steuerung: ja' : `Steuerung: nein (${this.lastWriteError})`);
+      } catch (err) { this.cp = false; this.log.push(`Steuerung: nein (${err?.name ?? err})`); }
     } catch (err) { this.log.push(`FTMS: nein (${err?.name ?? err})`); /* vielleicht ein reiner Leistungsmesser */ }
     if (!ok) {
-      const svc = await server.getPrimaryService(UUID.power);
-      const pm = await svc.getCharacteristic(UUID.powerMeasurement);
       let crank = null;
-      pm.addEventListener('characteristicvaluechanged', (e) => {
-        const d = parseCyclingPower(e.target.value, crank);
+      await ble.listen(h, UUID.power, UUID.powerMeasurement, (dv) => {
+        const d = parseCyclingPower(dv, crank);
         if (d.crank) crank = d.crank;
         this.push({ power: d.power, ...(d.cadence !== undefined ? { cadence: d.cadence } : {}) });
       });
-      await pm.startNotifications();
     }
     this.kind = 'ble';
     this.onChange();
   }
 
-  /** Verbindungsaufbau mit einem zweiten Versuch – der erste scheitert auf manchen Geräten. */
-  async gatt(device) {
-    try { return await device.gatt.connect(); } catch {
-      await new Promise((r) => setTimeout(r, 800));
-      return device.gatt.connect();
-    }
-  }
-
   async connectHeartRate() {
-    const device = await navigator.bluetooth.requestDevice({ filters: [{ services: [UUID.heartRate] }] });
-    const server = await this.gatt(device);
-    const ch = await (await server.getPrimaryService(UUID.heartRate)).getCharacteristic(UUID.heartRateMeasurement);
-    ch.addEventListener('characteristicvaluechanged', (e) => this.push({ hr: parseHeartRate(e.target.value) }));
-    await ch.startNotifications();
-    device.addEventListener('gattserverdisconnected', () => { this.hrName = ''; this.data.hr = null; this.onChange(); });
-    this.hrDevice = device;
-    this.hrName = device.name || 'Pulsgurt';
+    const ble = this.transport ?? await defaultTransport();
+    const h = await ble.pick({ heartRate: true });
+    await ble.open(h, () => { this.hrName = ''; this.data.hr = null; this.onChange(); });
+    await ble.listen(h, UUID.heartRate, UUID.heartRateMeasurement, (dv) => this.push({ hr: parseHeartRate(dv) }));
+    this.hrHandle = h;
+    this.hrName = h.name || 'Herzfrequenz-Sensor';
     this.onChange();
   }
 
   /** Schreibbefehle nacheinander senden – Bluetooth verträgt keine parallelen Schreibzugriffe. */
   write(bytes) {
-    if (!this.cp) return Promise.resolve();
-    // ältere Web-Bluetooth-Umsetzungen kennen nur writeValue
+    if (!this.cp || !this.handle) return Promise.resolve();
+    const { ble, handle } = this;
+    this.lastWriteError = null;
     this.queue = this.queue
-      .then(() => (this.cp.writeValueWithResponse ? this.cp.writeValueWithResponse(bytes) : this.cp.writeValue(bytes)))
+      .then(() => ble.send(handle, UUID.ftms, UUID.controlPoint, bytes))
       .catch((err) => { this.lastWriteError = err?.name ?? String(err); });
     return this.queue;
   }
@@ -130,12 +161,13 @@ export class Trainer {
   }
   reset() {
     clearInterval(this.timer);
-    this.kind = null; this.name = ''; this.cp = null; this.device = null; this.controllable = false;
+    this.kind = null; this.name = ''; this.cp = false; this.handle = null; this.controllable = false;
     this.data = { power: 0, cadence: 0, speedKmh: 0, hr: this.hrName ? this.data.hr : null };
     this.onChange();
   }
   disconnect() {
-    try { this.device?.gatt?.disconnect(); } catch { /* schon getrennt */ }
+    const { ble, handle } = this;
     if (this.kind) this.reset();
+    if (ble && handle) ble.close(handle);
   }
 }

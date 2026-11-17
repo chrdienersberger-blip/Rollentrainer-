@@ -1,1 +1,16 @@
-{"type":"module","private":true,"scripts":{"test":"node --test tests/*.mjs"}}
+{
+  "type": "module",
+  "private": true,
+  "scripts": {
+    "test": "node --test tests/*.mjs",
+    "app:build": "node scripts/build-app.mjs",
+    "app:sync": "npm run app:build && cap sync ios"
+  },
+  "devDependencies": {
+    "@capacitor-community/bluetooth-le": "^8.3.0",
+    "@capacitor/cli": "^8.6.2",
+    "@capacitor/core": "^8.6.2",
+    "@capacitor/ios": "^8.6.2",
+    "esbuild": "^0.28.2"
+  }
+}

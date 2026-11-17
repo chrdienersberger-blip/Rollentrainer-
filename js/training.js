@@ -1,8 +1,8 @@
 // Trainingsbereich: Trainer verbinden, Workouts (ERG) und Strecken (Steigungssimulation) fahren.
 
-import { Trainer, bluetoothAvailable } from './trainer.js?v=13';
+import { Trainer, bluetoothAvailable } from './trainer.js?v=14';
 import { WORKOUTS, ROUTES, workoutDuration, routeLength, routeClimb, targetAt, gradeAt, elevationAt, stepSpeed, summarize, toTcx, PLAN, planItem, prepFor,
-  POWER_ZONES, HR_ZONES, powerZone, hrZone, expectedHrZone, cadenceRange, powerRange, judge } from './workouts.js?v=13';
+  POWER_ZONES, HR_ZONES, powerZone, hrZone, expectedHrZone, cadenceRange, powerRange, judge } from './workouts.js?v=14';
 
 const PREFS_KEY = 'rollentrainer.training.v1', RIDES_KEY = 'rollentrainer.rides.v1';
 const SVGNS = 'http://www.w3.org/2000/svg';
@@ -170,7 +170,7 @@ export function initTraining(root) {
         allBtn.style.flexBasis = '100%';
       }
       if (!bluetoothAvailable()) {
-        hint.textContent = 'Dieser Browser kann keine Bluetooth-Geräte ansprechen. Das geht mit Chrome oder Edge auf Android, Windows und Mac. Auf iPhone und iPad funktioniert es weder in Safari noch in Chrome, weil dort alle Browser dieselbe Technik ohne Web-Bluetooth nutzen – es braucht einen Spezial-Browser mit dieser Funktion (z. B. Bluefy). Zum Ausprobieren gibt es den Demo-Trainer.';
+        hint.textContent = 'Dieser Browser kann keine Bluetooth-Geräte ansprechen. Das geht mit Chrome oder Edge auf Android, Windows und Mac. Auf iPhone und iPad funktioniert es weder in Safari noch in Chrome – dort braucht es die Antritt-App oder einen Spezial-Browser mit Web-Bluetooth. Zum Ausprobieren gibt es den Demo-Trainer.';
       }
       for (const s of root.querySelectorAll('.wkstart')) s.disabled = !trainer.connected;
       startHint.hidden = trainer.connected;
