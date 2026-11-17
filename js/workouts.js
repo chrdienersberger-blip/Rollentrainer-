@@ -262,3 +262,23 @@ export function routeFromTrack(name, pts) {
     track: at.map((p) => [Math.round(p.lat * 1e5) / 1e5, Math.round(p.lon * 1e5) / 1e5]),
   };
 }
+
+// ---------- Widerstand am Trainer ----------
+/** Ob gerade getreten wird (Trittfrequenz oder – bei reinen Leistungsmessern – Leistung). */
+export const isPedaling = (data) => (data.cadence || 0) >= 30 || (!data.cadence && (data.power || 0) >= 30);
+
+/**
+ * Steigung, die an den Trainer geht (Simulationsmodus). Wie bei Zwift wird die echte Steigung mit der
+ * „Trainer-Schwierigkeit“ abgeschwächt; die ersten 20 Sekunden wird sanft eingeblendet, Änderungen
+ * höchstens 1 % pro Sekunde, und ohne Treten bleibt der Trainer leicht.
+ */
+export function trainerGrade(real, { difficulty = 50, t = 99, prev = 0, pedaling = true } = {}) {
+  const want = pedaling ? Math.max(-10, Math.min(15, real * (difficulty / 100) * Math.min(1, t / 20))) : 0;
+  const next = (prev ?? 0) + Math.max(-1, Math.min(1, want - (prev ?? 0)));
+  return Math.round(next * 10) / 10;
+}
+
+/** Zielleistung im ERG-Modus mit sanftem Einstieg: die ersten 15 Sekunden von 60 auf 100 %. */
+export function ergTarget(target, t) {
+  return Math.round(target * (t < 15 ? 0.6 + (0.4 * t) / 15 : 1));
+}

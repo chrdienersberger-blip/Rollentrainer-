@@ -1,8 +1,8 @@
 // Trainingsbereich: Trainer verbinden, Workouts (ERG) und Strecken (Steigungssimulation) fahren.
 
-import { Trainer, bluetoothAvailable } from './trainer.js?v=20';
-import { WORKOUTS, ROUTES, workoutDuration, routeLength, routeClimb, routeFromTrack, targetAt, gradeAt, elevationAt, stepSpeed, summarize, toTcx, PLAN, planItem, prepFor,
-  POWER_ZONES, HR_ZONES, powerZone, hrZone, expectedHrZone, cadenceRange, powerRange, judge } from './workouts.js?v=20';
+import { Trainer, bluetoothAvailable } from './trainer.js?v=21';
+import { WORKOUTS, ROUTES, workoutDuration, routeLength, routeClimb, routeFromTrack, targetAt, gradeAt, elevationAt, stepSpeed, summarize, toTcx, PLAN, planItem, prepFor, trainerGrade, ergTarget, isPedaling,
+  POWER_ZONES, HR_ZONES, powerZone, hrZone, expectedHrZone, cadenceRange, powerRange, judge } from './workouts.js?v=21';
 
 const PREFS_KEY = 'rollentrainer.training.v1', RIDES_KEY = 'rollentrainer.rides.v1', ROUTES_KEY = 'rollentrainer.routes.v1';
 const SVGNS = 'http://www.w3.org/2000/svg';
@@ -39,7 +39,7 @@ const store = {
 };
 
 export function initTraining(root) {
-  const prefs = { ftp: 200, weight: 75, maxHr: 185, tab: 'workouts', planDone: {}, ...store.get(PREFS_KEY, {}) };
+  const prefs = { ftp: 200, weight: 75, maxHr: 185, difficulty: 50, tab: 'workouts', planDone: {}, ...store.get(PREFS_KEY, {}) };
   const savePrefs = () => store.set(PREFS_KEY, prefs);
   const ftp = () => Math.min(500, Math.max(80, Number(prefs.ftp) || 200));
   const maxHr = () => Math.min(230, Math.max(120, Number(prefs.maxHr) || 185));
@@ -227,7 +227,17 @@ export function initTraining(root) {
       you.querySelector('input[data-key=ftp]').value = prefs.ftp;
       renderList(); renderPlan();
     };
-    you.append(step2, grid, el('p', 'hint', 'Die Workouts richten sich nach deiner FTP – der Leistung, die du etwa eine Stunde halten kannst. Kennst du sie nicht, nimm den Schätzwert und fahre später den Rampentest. Den Maximalpuls kannst du grob mit 220 minus Lebensalter ansetzen; er bestimmt deine Herzfrequenzzonen.'), guess);
+    // Trainer-Schwierigkeit wie bei Zwift: wie stark Steigungen am Trainer spürbar sind
+    const diffLbl = el('label', 'lbl', 'Trainer-Schwierigkeit auf Strecken'), diffSeg = el('div', 'seg');
+    for (const v of [25, 50, 75, 100]) {
+      const b = el('button', null, `${v} %`);
+      b.type = 'button';
+      b.setAttribute('aria-pressed', String(Number(prefs.difficulty) === v));
+      b.onclick = () => { prefs.difficulty = v; savePrefs(); for (const x of diffSeg.children) x.setAttribute('aria-pressed', String(x === b)); };
+      diffSeg.append(b);
+    }
+    const diffHint = el('p', 'hint', 'Wie stark Steigungen am Trainer zu spüren sind. 50 % ist der übliche Standard (wie bei Zwift): Eine 8-%-Rampe fühlt sich wie 4 % an. Dein Tempo rechnet weiter mit der echten Steigung.');
+    you.append(step2, grid, diffLbl, diffSeg, diffHint, el('p', 'hint', 'Die Workouts richten sich nach deiner FTP – der Leistung, die du etwa eine Stunde halten kannst. Kennst du sie nicht, nimm den Schätzwert und fahre später den Rampentest. Den Maximalpuls kannst du grob mit 220 minus Lebensalter ansetzen; er bestimmt deine Herzfrequenzzonen.'), guess);
     root.append(you);
 
     // Einsteigerplan
@@ -390,7 +400,8 @@ export function initTraining(root) {
 
   // ---------- Fahrt ----------
   async function startRide(kind, def, planKey = null) {
-    ride = { planKey, kind, def, name: def.name, t: 0, dist: 0, v: 0, samples: [], paused: false, bias: 1, date: Date.now(), lastCmd: null, grade: 0 };
+    ride = { planKey, kind, def, name: def.name, t: 0, dist: 0, v: 0, samples: [], paused: false, bias: 1, date: Date.now(), lastCmd: null, grade: 0, sent: 0, erg: false };
+    trainer.setGrade(0);   // mit leichtem Widerstand beginnen
     statusHook = null;
     document.body.classList.add('busy');
     wakeLock = await navigator.wakeLock?.request('screen').catch(() => null);
@@ -476,11 +487,11 @@ export function initTraining(root) {
     const extras = [];
     if (kind === 'route') {
       // echte 3D-Welt, wo das Gerät WebGL kann; sonst die einfache gezeichnete Ansicht
-      const w3 = await import('./world3d.js?v=20').catch(() => null);
+      const w3 = await import('./world3d.js?v=21').catch(() => null);
       if (w3?.webglAvailable()) {
         try { world = w3.createWorld3D(def); } catch (err) { console.error(err); world = null; }
       }
-      if (!world) world = (await import('./world.js?v=20')).createWorld(def);
+      if (!world) world = (await import('./world.js?v=21')).createWorld(def);
       ride.world = world;
       extras.push(world.el);
     }
@@ -523,6 +534,9 @@ export function initTraining(root) {
     const pauseBtn = btn('Pause', 'secondary', () => {
       ride.paused = !ride.paused;
       pauseBtn.textContent = ride.paused ? 'Weiter' : 'Pause';
+      // in der Pause leicht treten können; beim Weiterfahren sanft wieder einsteigen
+      if (ride.paused) { trainer.setGrade(0); ride.sent = 0; ride.erg = false; ride.ergT = -1; }
+      ride.lastCmd = null;
       liveHook();
     });
     btn('Beenden', 'primary', () => finishRide());
@@ -545,7 +559,7 @@ export function initTraining(root) {
         time.textContent = clock(total - ride.t);
         updateGauges(tg);
         vTarget.textContent = tg ? de(tg.watts * ride.bias) : '–';
-        segInfo.textContent = ride.paused ? 'Pausiert' : tg ? `Abschnitt ${tg.index + 1} von ${def.segs.length} · noch ${clock(tg.remaining)}` : '';
+        segInfo.textContent = ride.paused ? 'Pausiert – Widerstand locker' : tg ? `Abschnitt ${tg.index + 1} von ${def.segs.length} · noch ${clock(tg.remaining)}` : '';
         biasLabel.textContent = ride.bias === 1 ? 'Intensität 100 %' : `Intensität ${Math.round(ride.bias * 100)} %`;
         cursor.setAttribute('x1', pf.x(ride.t)); cursor.setAttribute('x2', pf.x(ride.t));
         marker.setAttribute('cx', pf.x(ride.t));
@@ -556,7 +570,7 @@ export function initTraining(root) {
         mapPos?.(ride.dist / pf.total);
         world?.update({ dist: ride.dist, v: ride.v, grade: ride.grade, cad: trainer.data.cadence, power: power3s(), hr: trainer.data.hr, paused: ride.paused });
         vTarget.textContent = `${ride.grade > 0 ? '+' : ''}${de(ride.grade, 1)} %`;
-        segInfo.textContent = ride.paused ? 'Pausiert' : `noch ${de((pf.total - ride.dist) / 1000, 1)} km · ${de(elevationAt(def, ride.dist))} m ü. M.`;
+        segInfo.textContent = ride.paused ? 'Pausiert – Widerstand locker' : `noch ${de((pf.total - ride.dist) / 1000, 1)} km · am Trainer ${ride.sent > 0 ? '+' : ''}${de(ride.sent, 1)} %`;
         cursor.setAttribute('x1', pf.x(ride.dist)); cursor.setAttribute('x2', pf.x(ride.dist));
         marker.setAttribute('cx', pf.x(ride.dist));
         marker.setAttribute('cy', pf.y(elevationAt(def, ride.dist)));
@@ -571,14 +585,22 @@ export function initTraining(root) {
         const tg = targetAt(def, ride.t, ftp());
         if (!tg) return finishRide();
         target = Math.round(tg.watts * ride.bias);
-        if (target !== ride.lastCmd) { trainer.setTargetPower(target); ride.lastCmd = target; }
+        // ERG erst, wenn getreten wird – aus dem Stand fühlt sich ERG sonst wie eine Wand an
+        if (isPedaling(d)) {
+          ride.ergT = (ride.ergT ?? -1) + 1;
+          const cmd = ergTarget(target, ride.ergT);
+          if (cmd !== ride.lastCmd) { trainer.setTargetPower(cmd); ride.lastCmd = cmd; ride.erg = true; }
+        } else if (ride.erg || ride.lastCmd === null) {
+          trainer.setGrade(0); ride.erg = false; ride.lastCmd = 0; ride.ergT = -1;
+        }
         ride.grade = 0;
         pts.push(`${pf.x(ride.t).toFixed(1)},${pf.y(Math.min(topPct, (power / ftp()) * 100)).toFixed(1)}`);
         trace.setAttribute('points', pts.join(' '));
       } else {
         ride.grade = gradeAt(def, ride.dist);
-        const cmd = Math.round(ride.grade * 10) / 10;
-        if (cmd !== ride.lastCmd) { trainer.setGrade(cmd); ride.lastCmd = cmd; }
+        // am Trainer abgeschwächt und sanft – das Tempo rechnet unten mit der echten Steigung
+        ride.sent = trainerGrade(ride.grade, { difficulty: Number(prefs.difficulty) || 50, t: ride.t, prev: ride.sent, pedaling: isPedaling(d) });
+        if (ride.sent !== ride.lastCmd) { trainer.setGrade(ride.sent); ride.lastCmd = ride.sent; }
       }
       ride.v = stepSpeed(ride.v, power, ride.grade, mass(), 1);
       ride.dist += ride.v;
@@ -701,7 +723,7 @@ export function initTraining(root) {
       const fitBtn = el('button', 'primary', 'Fahrt exportieren (FIT)');
       fitBtn.type = 'button';
       fitBtn.onclick = async () => {
-        const { toFit } = await import('./fit.js?v=20');
+        const { toFit } = await import('./fit.js?v=21');
         deliver(new File([toFit(r.date, r.samples)], `ridemore-${stamp}.fit`, { type: 'application/octet-stream' }));
       };
       const tcxBtn = el('button', 'textbtn', 'Stattdessen als TCX-Datei');

@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { parseIndoorBikeData, parseCyclingPower, parseHeartRate, cmdTargetPower, cmdSimulation } from '../js/ftms.js';
-import { WORKOUTS, ROUTES, workoutDuration, targetAt, gradeAt, elevationAt, routeLength, routeClimb, stepSpeed, summarize, toTcx, PLAN, planItem, prepFor, powerZone, hrZone, expectedHrZone, cadenceRange, powerRange, judge, routeFromTrack } from '../js/workouts.js';
+import { WORKOUTS, ROUTES, workoutDuration, targetAt, gradeAt, elevationAt, routeLength, routeClimb, stepSpeed, summarize, toTcx, PLAN, planItem, prepFor, powerZone, hrZone, expectedHrZone, cadenceRange, powerRange, judge, routeFromTrack, trainerGrade, ergTarget, isPedaling } from '../js/workouts.js';
 
 const dv = (bytes) => new DataView(Uint8Array.from(bytes).buffer);
 
@@ -277,4 +277,25 @@ test('3D-Straße: Kehren liegen parallel übereinander, die Straße kreuzt sich 
     for (let i = 0; i < r.n; i += 4) for (let j = i + 40; j < r.n; j += 4) min = Math.min(min, Math.hypot(r.X[i] - r.X[j], r.Z[i] - r.Z[j]));
     assert.ok(min > 18, `${id}: Straßen nur ${min.toFixed(1)} m auseinander`);
   }
+});
+
+test('Widerstand: abgeschwächt, sanft eingeblendet, ohne Treten leicht', () => {
+  // Start einer 10-%-Rampe: erste Sekunde fast nichts
+  assert.ok(trainerGrade(10, { t: 1, prev: 0 }) <= 0.3);
+  // nach dem Einblenden: halbe Steigung bei 50 % Schwierigkeit
+  let g = 0;
+  for (let t = 0; t < 40; t++) g = trainerGrade(10, { t, prev: g });
+  assert.equal(g, 5);
+  assert.equal(trainerGrade(10, { difficulty: 100, t: 60, prev: 10 }), 10);
+  // Sprünge werden auf 1 % pro Sekunde begrenzt
+  assert.equal(trainerGrade(12, { difficulty: 100, t: 60, prev: 2 }), 3);
+  assert.equal(trainerGrade(-8, { difficulty: 100, t: 60, prev: 2 }), 1);
+  // ohne Treten geht es zurück auf 0
+  assert.equal(trainerGrade(10, { t: 60, prev: 0.5, pedaling: false }), 0);
+  assert.equal(trainerGrade(30, { difficulty: 100, t: 60, prev: 15 }), 15);
+  assert.equal(ergTarget(200, 0), 120);
+  assert.equal(ergTarget(200, 15), 200);
+  assert.equal(isPedaling({ cadence: 0, power: 0 }), false);
+  assert.equal(isPedaling({ cadence: 85 }), true);
+  assert.equal(isPedaling({ power: 150 }), true);
 });

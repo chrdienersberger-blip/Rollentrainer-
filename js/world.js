@@ -2,7 +2,7 @@
 // Rennspielen), die dem Höhenprofil und den Kurven der Strecke folgt – mit dem eigenen Fahrer von hinten.
 // buildCourse/courseCurvature sind reine Rechenlogik (testbar ohne Browser), createWorld zeichnet.
 
-import { routeLength, elevationAt } from './workouts.js?v=20';
+import { routeLength, elevationAt } from './workouts.js?v=21';
 
 export const SEG = 5;                 // Länge eines Straßenabschnitts in Metern
 export const PRE = 12;                // Abschnitte vor dem Start
