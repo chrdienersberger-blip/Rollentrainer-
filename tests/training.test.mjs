@@ -235,3 +235,17 @@ test('Video: YouTube-Kennung und Abspieltempo', () => {
   assert.equal(videoRate(9), 0.25);
   assert.equal(videoRate(80), 2);
 });
+
+test('FIT-Export: Prüfsumme, Kopf und Aufbau', async () => {
+  const { toFit, fitCrc } = await import('../js/fit.js');
+  assert.equal(fitCrc(new TextEncoder().encode('123456789')), 0xbb3d);     // bekannter Prüfwert (CRC-16/ARC)
+  const samples = Array.from({ length: 120 }, (_, i) => ({ power: 150 + i, cad: 90, hr: i < 5 ? null : 140, speed: 30, dist: i * 8.33 }));
+  const f = toFit(Date.UTC(2026, 10, 17, 6, 0, 0), samples);
+  const dv = new DataView(f.buffer);
+  assert.equal(f[0], 14);
+  assert.equal(String.fromCharCode(...f.subarray(8, 12)), '.FIT');
+  assert.equal(dv.getUint32(4, true), f.length - 16);                       // Datenlänge ohne Kopf und Prüfsumme
+  assert.equal(dv.getUint16(12, true), fitCrc(f.subarray(0, 12)));
+  assert.equal(fitCrc(f), 0);                                               // Prüfsumme über die ganze Datei geht auf
+  assert.equal(toFit(Date.now(), []).length > 30, true);
+});

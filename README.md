@@ -42,6 +42,7 @@ Danach ist die App unter `https://<benutzer>.github.io/<repo>/` erreichbar.
 | `js/training.js` | Trainingsbereich: Übersicht, Fahrt, Auswertung |
 | `js/trainer.js` | Bluetooth-Verbindung zum Trainer, Demo-Trainer |
 | `js/ftms.js` | Trainer-Protokoll (FTMS, Leistungsmesser, Puls) |
+| `js/fit.js` | Export einer Fahrt als FIT-Datei |
 | `js/workouts.js` | Workouts, Strecken, Fahrphysik, Kennzahlen, TCX |
 | `js/market.js` | Marketplace-Verzeichnis |
 | `js/app.js` | Bike-Fitting: Kamera, Pose-Erkennung, Ablauf, Anzeige |

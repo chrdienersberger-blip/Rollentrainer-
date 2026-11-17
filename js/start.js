@@ -1,8 +1,8 @@
 // Startseite: Überblick über die drei Bereiche, mit gezeichneten Grafiken.
 
-import { initHero, buildBike } from './hero.js?v=15';
-import { findBike } from './bikes.js?v=15';
-import { WORKOUTS, ROUTES, workoutDuration, routeLength } from './workouts.js?v=15';
+import { initHero, buildBike } from './hero.js?v=16';
+import { findBike } from './bikes.js?v=16';
+import { WORKOUTS, ROUTES, workoutDuration, routeLength } from './workouts.js?v=16';
 
 const SVGNS = 'http://www.w3.org/2000/svg';
 const INK = '#111110', PANEL = '#e4dfd5', MUTED = '#77736b', ACCENT = '#a8553a', GRID = '#d3cdc1';
@@ -106,8 +106,8 @@ export function renderStart(root) {
   root.replaceChildren(head, hero);
   // eigenes Foto, falls vorhanden
   const photo = new Image();
-  photo.onload = () => { photo.className = 'herophoto'; photo.alt = 'Rennrad vor Berglandschaft'; art.replaceChildren(photo); };
-  photo.src = 'img/hero.jpg';
+  photo.onload = () => { photo.className = 'herophoto'; photo.alt = 'Rennradfahrer in einer Kehre einer Bergstraße, darüber der Schriftzug „Ride More – Deine Tour. Dein Moment.“'; art.replaceChildren(photo); };
+  photo.src = 'img/hero.jpg?v=16';
 
   // Dein Weg in vier Schritten
   const starter = (() => { try { return JSON.parse(localStorage.getItem('rollentrainer.starter.v1')) ?? {}; } catch { return {}; } })();
@@ -170,5 +170,5 @@ export function renderStart(root) {
     root.append(last);
   }
   root.append(el('p', 'note', 'Alle Daten bleiben auf deinem Gerät. Die Grafiken sind gezeichnet; die Bike-Fitting-Messung ist eine Orientierung und ersetzt kein professionelles Bikefitting.'),
-    el('p', 'note ver', 'Antritt · Version 15'));
+    el('p', 'note ver', 'Antritt · Version 16'));
 }

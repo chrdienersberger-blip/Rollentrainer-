@@ -1,8 +1,8 @@
 // Trainingsbereich: Trainer verbinden, Workouts (ERG) und Strecken (Steigungssimulation) fahren.
 
-import { Trainer, bluetoothAvailable } from './trainer.js?v=15';
+import { Trainer, bluetoothAvailable } from './trainer.js?v=16';
 import { WORKOUTS, ROUTES, workoutDuration, routeLength, routeClimb, routeFromTrack, youtubeId, videoRate, targetAt, gradeAt, elevationAt, stepSpeed, summarize, toTcx, PLAN, planItem, prepFor,
-  POWER_ZONES, HR_ZONES, powerZone, hrZone, expectedHrZone, cadenceRange, powerRange, judge } from './workouts.js?v=15';
+  POWER_ZONES, HR_ZONES, powerZone, hrZone, expectedHrZone, cadenceRange, powerRange, judge } from './workouts.js?v=16';
 
 const PREFS_KEY = 'rollentrainer.training.v1', RIDES_KEY = 'rollentrainer.rides.v1', ROUTES_KEY = 'rollentrainer.routes.v1';
 const SVGNS = 'http://www.w3.org/2000/svg';
@@ -683,16 +683,48 @@ export function initTraining(root) {
       card.append(wrap);
       root.append(card);
 
-      const dl = el('button', 'secondary', 'Als TCX-Datei speichern');
-      dl.type = 'button';
-      dl.onclick = () => {
+      // Export: FIT ist das Format, das die Plattformen am zuverlässigsten annehmen; TCX als Ausweichformat
+      const stamp = new Date(r.date).toISOString().slice(0, 16).replace(/[:T]/g, '-');
+      const note = el('p', 'hint');
+      const deliver = async (file) => {
+        note.textContent = '';
+        // Auf dem iPhone über das Teilen-Menü: „In Dateien sichern“ oder direkt an eine App geben
+        if (navigator.canShare?.({ files: [file] })) {
+          try { await navigator.share({ files: [file], title: r.name }); return; } catch (err) {
+            if (err?.name === 'AbortError') return;
+          }
+        }
         const a = el('a');
-        a.href = URL.createObjectURL(new Blob([toTcx(r.date, r.samples)], { type: 'application/vnd.garmin.tcx+xml' }));
-        a.download = `antritt-${new Date(r.date).toISOString().slice(0, 10)}.tcx`;
+        a.href = URL.createObjectURL(file);
+        a.download = file.name;
+        document.body.append(a);
         a.click();
-        setTimeout(() => URL.revokeObjectURL(a.href), 2000);
+        a.remove();
+        setTimeout(() => URL.revokeObjectURL(a.href), 4000);
+        note.textContent = `Die Datei „${file.name}“ wurde heruntergeladen. Passiert nichts, unterstützt dieser Browser keine Downloads – dann die Seite in Safari oder Chrome öffnen.`;
       };
-      root.append(dl, el('p', 'hint', 'Die TCX-Datei lässt sich z. B. bei Strava, Garmin Connect oder TrainingPeaks hochladen.'));
+      const fitBtn = el('button', 'primary', 'Fahrt exportieren (FIT)');
+      fitBtn.type = 'button';
+      fitBtn.onclick = async () => {
+        const { toFit } = await import('./fit.js?v=16');
+        deliver(new File([toFit(r.date, r.samples)], `antritt-${stamp}.fit`, { type: 'application/octet-stream' }));
+      };
+      const tcxBtn = el('button', 'textbtn', 'Stattdessen als TCX-Datei');
+      tcxBtn.type = 'button';
+      tcxBtn.onclick = () => deliver(new File([toTcx(r.date, r.samples)], `antritt-${stamp}.tcx`, { type: 'application/octet-stream' }));
+      const how = el('details', 'prep');
+      how.append(el('summary', null, 'So kommt die Fahrt zu Strava & Co.'));
+      for (const [k, v] of [
+        ['Strava', 'Am Rechner oder im Handy-Browser strava.com/upload/select öffnen, „Datei“ wählen und die FIT-Datei hochladen. In der Strava-App selbst gibt es keinen Datei-Upload.'],
+        ['Garmin Connect', 'Auf connect.garmin.com oben rechts auf das Wolken-Symbol „Importieren“ und die FIT-Datei wählen.'],
+        ['TrainingPeaks, intervals.icu', 'Die FIT-Datei im Kalender auf den Tag ziehen oder über „Upload“ hochladen.'],
+        ['Wahoo', 'Die Wahoo-App nimmt nach meinem Stand keine fremden Dateien an. Der übliche Weg: zu Strava hochladen und Strava in der Wahoo-App verknüpfen.'],
+      ]) {
+        const row = el('div', 'preprow');
+        row.append(el('b', null, k), el('p', null, v));
+        how.append(row);
+      }
+      root.append(fitBtn, tcxBtn, note, how);
     } else if (stored) {
       root.append(el('p', 'hint', 'Für diese ältere Fahrt sind nur die Kennzahlen gespeichert.'));
     }
