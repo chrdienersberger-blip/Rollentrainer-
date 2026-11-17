@@ -26,8 +26,24 @@ export const WORKOUTS = [
     segs: [seg(5, 45, 50), ...Array.from({ length: 22 }, (_, i) => seg(1, 50 + i * 6))] },
 ];
 
+/** Baut ein Höhenprofil aus Abschnitten [Länge in km, Steigung in %]. */
+function climb(startEle, parts) {
+  const pts = [[0, startEle]];
+  let km = 0, ele = startEle;
+  for (const [len, grade] of parts) { km += len; ele += len * 10 * grade; pts.push([Math.round(km * 100) / 100, Math.round(ele)]); }
+  return pts;
+}
+
 // Strecken: Stützpunkte [Kilometer, Höhe in Metern]
+// real: bekannte Anstiege. Länge und Höhenmeter entsprechen den üblichen Angaben, der Verlauf der
+// Steigung ist aus Kilometer-Mittelwerten angenähert – kein vermessener GPS-Track.
 export const ROUTES = [
+  { id: 'sacalobra', real: true, name: 'Sa Calobra', place: 'Mallorca · Coll dels Reis', text: 'Der bekannteste Anstieg Mallorcas: vom Meer in 26 Kehren gleichmäßig hinauf.',
+    points: climb(28, [[1, 6.5], [1, 7.5], [1, 7], [1, 6.5], [1, 7.5], [1, 7.5], [1, 7], [1, 7.5], [1, 7], [0.4, 6]]) },
+  { id: 'alpedhuez', real: true, name: 'Alpe d’Huez', place: 'Französische Alpen · ab Bourg-d’Oisans', text: '21 Kehren, die ersten beiden Kilometer sind die steilsten.',
+    points: climb(720, [[1, 10.4], [1, 10.6], [1, 8.6], [1, 8.2], [1, 8.3], [1, 9], [1, 8.7], [1, 6.6], [1, 8.6], [1, 7.6], [1, 8.8], [1, 7], [1, 5.4], [0.8, 4.5]]) },
+  { id: 'ventoux', real: true, name: 'Mont Ventoux', place: 'Provence · ab Bédoin', text: 'Sanfter Beginn, dann fast zehn Kilometer um 9 % durch den Wald und zum Schluss die Mondlandschaft.',
+    points: climb(300, [[5.8, 4.4], [2, 9], [3, 10.2], [2.5, 9.3], [2, 8.8], [3, 7], [2, 7.6], [1, 10]]) },
   { id: 'flat', name: 'Flachrunde', text: 'Kaum Höhenmeter – ideal zum Einrollen oder für Tempo.',
     points: [[0, 120], [2, 124], [4.5, 118], [7, 126], [9, 121], [12, 120]] },
   { id: 'hills', name: 'Hügelrunde', text: 'Fünf kurze Wellen mit bis zu 7 %.',
@@ -140,8 +156,11 @@ export const planItem = (kind, id) => (kind === 'workout' ? WORKOUTS : ROUTES).f
  */
 export function prepFor(kind, def, weightKg = 75) {
   const kg = Math.min(150, Math.max(40, Number(weightKg) || 75));
-  const minutes = kind === 'workout' ? workoutDuration(def) / 60 : (routeLength(def) / 1000) * (def.id === 'pass' ? 5.5 : 2.4);
-  const peak = kind === 'workout' ? Math.max(...def.segs.map((x) => Math.max(x[1], x[2]))) : { flat: 70, hills: 90, pass: 100 }[def.id] ?? 80;
+  // Strecken: Dauer und Härte grob aus Länge und Höhenmetern
+  const km = kind === 'route' ? routeLength(def) / 1000 : 0, up = kind === 'route' ? routeClimb(def) : 0;
+  const minutes = kind === 'workout' ? workoutDuration(def) / 60 : km * 2.4 + up / 10;
+  const peak = kind === 'workout' ? Math.max(...def.segs.map((x) => Math.max(x[1], x[2])))
+    : up / km >= 40 || up >= 800 ? 100 : up / km >= 12 ? 90 : 70;
   const level = peak >= 96 ? 'hard' : peak >= 76 || minutes >= 40 ? 'moderate' : 'easy';
   const g = (perKg) => Math.round((kg * perKg) / 5) * 5;
   const kit = 'Ventilator, Handtuch und eine volle Trinkflasche in Griffweite.';
@@ -196,3 +215,62 @@ export function powerRange(target) {
 
 /** 'low' | 'ok' | 'high' */
 export const judge = (value, [lo, hi]) => (value < lo ? 'low' : value > hi ? 'high' : 'ok');
+
+// ---------- Eigene Strecken aus GPS-Tracks (GPX) ----------
+const toRad = (d) => (d * Math.PI) / 180;
+function haversine(a, b) {
+  const dLat = toRad(b.lat - a.lat), dLon = toRad(b.lon - a.lon);
+  const h = Math.sin(dLat / 2) ** 2 + Math.cos(toRad(a.lat)) * Math.cos(toRad(b.lat)) * Math.sin(dLon / 2) ** 2;
+  return 12742000 * Math.asin(Math.sqrt(h));
+}
+
+/**
+ * Macht aus Trackpunkten [{ lat, lon, ele }] eine Strecke mit Höhenprofil und Kartenlinie.
+ * Die Punkte werden gleichmäßig neu abgetastet und die Höhe geglättet, weil GPS-Höhen rauschen.
+ * Liefert null, wenn der Track zu kurz ist.
+ */
+export function routeFromTrack(name, pts) {
+  const clean = pts.filter((p) => Number.isFinite(p.lat) && Number.isFinite(p.lon));
+  if (clean.length < 2) return null;
+  const dist = [0];
+  for (let i = 1; i < clean.length; i++) dist.push(dist[i - 1] + haversine(clean[i - 1], clean[i]));
+  const total = dist[dist.length - 1];
+  if (total < 500) return null;
+  const hasEle = clean.some((p) => Number.isFinite(p.ele));
+  const step = Math.max(50, total / 400), n = Math.floor(total / step) + 1;
+  const at = [];
+  for (let k = 0, i = 0; k <= n; k++) {
+    const d = Math.min(total, k * step);
+    while (i < dist.length - 2 && dist[i + 1] < d) i++;
+    const f = Math.max(0, Math.min(1, (d - dist[i]) / (dist[i + 1] - dist[i] || 1))), a = clean[i], b = clean[i + 1];
+    const lerp = (x, y) => x + (y - x) * f;
+    at.push({ d, lat: lerp(a.lat, b.lat), lon: lerp(a.lon, b.lon), ele: hasEle ? lerp(a.ele ?? b.ele ?? 0, b.ele ?? a.ele ?? 0) : 0 });
+    if (d >= total) break;
+  }
+  // zweimal über rund ±150 m mitteln – einmal reicht bei verrauschten GPS-Höhen nicht
+  const r = Math.max(2, Math.round(150 / step));
+  const pass = (arr) => arr.map((_, i) => {
+    const w = Math.min(r, i, arr.length - 1 - i);           // am Rand symmetrisch schmaler, sonst wird der Anfang zu flach
+    const part = arr.slice(i - w, i + w + 1);
+    return part.reduce((sum, v) => sum + v, 0) / part.length;
+  });
+  const smooth = pass(pass(at.map((p) => p.ele)));
+  return {
+    id: `gpx-${Math.round(total)}-${clean.length}`, custom: true, name, hasEle,
+    text: hasEle ? 'Eigene Strecke aus einer GPX-Datei.' : 'Eigene Strecke – die Datei enthält keine Höhen, deshalb ohne Steigung.',
+    points: at.map((p, i) => [Math.round(p.d) / 1000, Math.round(smooth[i] * 10) / 10]),
+    track: at.map((p) => [Math.round(p.lat * 1e5) / 1e5, Math.round(p.lon * 1e5) / 1e5]),
+  };
+}
+
+// ---------- Video zur Strecke ----------
+/** Kennung eines YouTube-Videos aus den üblichen Link-Formen, sonst null. */
+export function youtubeId(url) {
+  const m = String(url ?? '').match(/(?:youtu\.be\/|youtube(?:-nocookie)?\.com\/(?:watch\?(?:.*&)?v=|embed\/|shorts\/|live\/))([\w-]{11})/);
+  return m ? m[1] : null;
+}
+/** Abspieltempo passend zur Fahrgeschwindigkeit: 25 km/h entsprechen normalem Tempo. 0 = anhalten. */
+export function videoRate(kmh) {
+  if (kmh < 2) return 0;
+  return Math.max(0.25, Math.min(2, Math.round((kmh / 25) * 4) / 4));
+}

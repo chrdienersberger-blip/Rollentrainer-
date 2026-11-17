@@ -13,7 +13,7 @@ export const nativeBle = {
     await ready;
     const optionalServices = [FTMS, POWER, HEART_RATE].map(numberToUUID);
     const device = await BleClient.requestDevice(
-      heartRate ? { services: [numberToUUID(HEART_RATE)] }
+      heartRate ? (all ? { optionalServices: [numberToUUID(HEART_RATE)] } : { services: [numberToUUID(HEART_RATE)] })
         : all ? { optionalServices }
           : { services: [numberToUUID(FTMS), numberToUUID(POWER)], optionalServices });
     return { name: device.name, id: device.deviceId };

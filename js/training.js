@@ -1,10 +1,10 @@
 // Trainingsbereich: Trainer verbinden, Workouts (ERG) und Strecken (Steigungssimulation) fahren.
 
-import { Trainer, bluetoothAvailable } from './trainer.js?v=14';
-import { WORKOUTS, ROUTES, workoutDuration, routeLength, routeClimb, targetAt, gradeAt, elevationAt, stepSpeed, summarize, toTcx, PLAN, planItem, prepFor,
-  POWER_ZONES, HR_ZONES, powerZone, hrZone, expectedHrZone, cadenceRange, powerRange, judge } from './workouts.js?v=14';
+import { Trainer, bluetoothAvailable } from './trainer.js?v=15';
+import { WORKOUTS, ROUTES, workoutDuration, routeLength, routeClimb, routeFromTrack, youtubeId, videoRate, targetAt, gradeAt, elevationAt, stepSpeed, summarize, toTcx, PLAN, planItem, prepFor,
+  POWER_ZONES, HR_ZONES, powerZone, hrZone, expectedHrZone, cadenceRange, powerRange, judge } from './workouts.js?v=15';
 
-const PREFS_KEY = 'rollentrainer.training.v1', RIDES_KEY = 'rollentrainer.rides.v1';
+const PREFS_KEY = 'rollentrainer.training.v1', RIDES_KEY = 'rollentrainer.rides.v1', ROUTES_KEY = 'rollentrainer.routes.v1';
 const SVGNS = 'http://www.w3.org/2000/svg';
 const INK = '#111110', MUTED = '#77736b', LINE = '#d6d1c6', ACCENT = '#a8553a';
 const FONT = 'Helvetica Neue, Helvetica, Arial, sans-serif';
@@ -32,7 +32,7 @@ const store = {
 };
 
 export function initTraining(root) {
-  const prefs = { ftp: 200, weight: 75, maxHr: 185, tab: 'workouts', planDone: {}, ...store.get(PREFS_KEY, {}) };
+  const prefs = { ftp: 200, weight: 75, maxHr: 185, tab: 'workouts', planDone: {}, videos: {}, ...store.get(PREFS_KEY, {}) };
   const savePrefs = () => store.set(PREFS_KEY, prefs);
   const ftp = () => Math.min(500, Math.max(80, Number(prefs.ftp) || 200));
   const maxHr = () => Math.min(230, Math.max(120, Number(prefs.maxHr) || 185));
@@ -131,9 +131,15 @@ export function initTraining(root) {
     };
     dev.append(step, status, live, btns, hint);
     root.append(dev);
-    const run = async (fn) => {
+    const HR_HELP = 'Bei einer Garmin-Uhr muss das Senden der Herzfrequenz eingeschaltet sein: auf der Uhr das Herzfrequenz-Widget öffnen, Menü lange drücken und „HF senden“ (Broadcast) starten – je nach Modell auch unter Einstellungen → Sensoren. Die Uhr muss dabei am Handgelenk sitzen. Ältere Modelle senden nur über ANT+, das Handys und Browser nicht empfangen.';
+    const run = async (fn, hr = false) => {
       hint.textContent = '';
       try { await fn(); } catch (err) {
+        if (hr) {
+          hint.textContent = (err?.name === 'NotFoundError' ? 'Es wurde kein Sensor ausgewählt. Taucht deine Uhr nicht auf, probiere „Uhr nicht in der Liste?“. '
+            : `Die Verbindung zum Herzfrequenz-Sensor hat nicht geklappt (${err?.message ?? err?.name ?? err}). `) + HR_HELP;
+          return;
+        }
         // NotFoundError = Auswahl abgebrochen oder kein Gerät gefunden
         hint.textContent = err?.name === 'NotFoundError'
           ? 'Es wurde kein Gerät ausgewählt. Taucht dein Trainer in der Liste nicht auf, probiere „Alle Bluetooth-Geräte anzeigen“. Der Trainer muss eingeschaltet sein (kurz treten) und darf mit keiner anderen App verbunden sein.'
@@ -162,8 +168,14 @@ export function initTraining(root) {
         b('Demo-Trainer', 'secondary', () => trainer.connectDemo());
       }
       if (!trainer.hrName) {
-        const h = b('Herzfrequenz-Sensor verbinden', 'secondary', () => run(() => trainer.connectHeartRate()));
+        const h = b('Herzfrequenz-Sensor verbinden', 'secondary', () => run(() => trainer.connectHeartRate(), true));
         h.disabled = !bluetoothAvailable();
+        if (bluetoothAvailable()) {
+          const allHr = b('Uhr nicht in der Liste? Alle Geräte anzeigen', 'textbtn', () => run(() => trainer.connectHeartRate(true), true));
+          allHr.style.flexBasis = '100%';
+          const help = b('Garmin-Uhr als Sensor: so geht’s', 'textbtn', () => { hint.textContent = HR_HELP; });
+          help.style.flexBasis = '100%';
+        }
       }
       if (bluetoothAvailable() && !trainer.connected) {
         const allBtn = b('Alle Bluetooth-Geräte anzeigen', 'textbtn', () => run(() => trainer.connectBluetooth(true)));
@@ -267,9 +279,50 @@ export function initTraining(root) {
     root.append(pick);
     function renderList() {
       list.replaceChildren();
-      const items = prefs.tab === 'workouts' ? WORKOUTS : ROUTES;
-      for (const def of items) {
-        const kind = prefs.tab === 'workouts' ? 'workout' : 'route';
+      const kind = prefs.tab === 'workouts' ? 'workout' : 'route';
+      const custom = store.get(ROUTES_KEY, []);
+      const groups = kind === 'workout' ? [[null, WORKOUTS]] : [
+        ['Bekannte Anstiege', ROUTES.filter((r) => r.real)],
+        ['Deine Strecken', custom],
+        ['Trainingsstrecken', ROUTES.filter((r) => !r.real)],
+      ];
+      for (const [title, items] of groups) {
+        if (title) list.append(el('label', 'lbl', title));
+        if (title === 'Deine Strecken') list.append(gpxLoader());
+        for (const def of items) list.append(unitRow(kind, def));
+      }
+    }
+    /** Knopf zum Laden einer GPX-Datei (z. B. aus Komoot, Strava oder Garmin Connect exportiert). */
+    function gpxLoader() {
+      const box = el('div', 'gpx');
+      const lab = el('label', 'secondary filebtn', 'GPX-Datei laden');
+      const inp = el('input');
+      inp.type = 'file'; inp.accept = '.gpx,application/gpx+xml,application/xml,text/xml'; inp.hidden = true;
+      const msg = el('p', 'hint', 'Jede echte Strecke lässt sich als GPX-Datei laden – mit ihrem Höhenprofil und ihrer Linie auf der Karte. GPX-Dateien exportierst du z. B. aus Komoot, Strava oder Garmin Connect.');
+      inp.onchange = async () => {
+        const file = inp.files[0];
+        inp.value = '';
+        if (!file) return;
+        try {
+          const doc = new DOMParser().parseFromString(await file.text(), 'application/xml');
+          const pts = [...doc.querySelectorAll('trkpt, rtept')].map((n) => ({
+            lat: Number(n.getAttribute('lat')), lon: Number(n.getAttribute('lon')),
+            ele: n.querySelector('ele') ? Number(n.querySelector('ele').textContent) : undefined,
+          }));
+          const name = doc.querySelector('trk > name, rte > name, metadata > name')?.textContent?.trim() || file.name.replace(/\.gpx$/i, '');
+          const route = routeFromTrack(name.slice(0, 60), pts);
+          if (!route) { msg.textContent = 'In dieser Datei wurde keine Strecke gefunden (mindestens 500 m mit Koordinaten).'; return; }
+          const all = [route, ...store.get(ROUTES_KEY, []).filter((r) => r.id !== route.id)].slice(0, 12);
+          if (!store.set(ROUTES_KEY, all)) { msg.textContent = 'Die Strecke konnte nicht gespeichert werden – der Speicher des Browsers ist voll.'; return; }
+          renderList();
+        } catch { msg.textContent = 'Die Datei konnte nicht gelesen werden. Ist es eine GPX-Datei?'; }
+      };
+      lab.append(inp);
+      box.append(lab, msg);
+      return box;
+    }
+    function unitRow(kind, def) {
+      {
         const row = el('div', 'wk'), top = el('div', 'wkhead'), left = el('div');
         const meta = kind === 'workout'
           ? `${Math.round(workoutDuration(def) / 60)} min · ${def.focus} · bis ${de((Math.max(...def.segs.map((s) => Math.max(s[1], s[2]))) / 100) * ftp())} W`
@@ -280,8 +333,29 @@ export function initTraining(root) {
         go.disabled = !trainer.connected;
         go.onclick = () => startRide(kind, def);
         top.append(left, go);
-        row.append(top, profile(kind, def).svg, el('p', 'wktext', def.text), prepBlock(kind, def));
-        list.append(row);
+        row.append(top, profile(kind, def).svg);
+        if (def.place) row.append(el('p', 'wkplace', def.place));
+        row.append(el('p', 'wktext', def.text));
+        if (def.real) row.append(el('p', 'prepnote', 'Länge und Höhenmeter entsprechen den üblichen Angaben; der Steigungsverlauf ist angenähert.'));
+        if (kind === 'route') {
+          // Video zur Strecke: eigener YouTube-Link, läuft während der Fahrt mit
+          const d = el('details', 'prep'), inp = el('input'), state = el('p', 'prepnote');
+          const showState = () => { state.textContent = youtubeId(prefs.videos[def.id]) ? 'Video hinterlegt – es läuft während der Fahrt mit, schneller oder langsamer je nach deinem Tempo.' : 'Füge den Link zu einem YouTube-Video der Strecke ein. Das Video wird von YouTube geladen.'; };
+          d.append(el('summary', null, 'Video zur Strecke'));
+          inp.type = 'url'; inp.placeholder = 'https://www.youtube.com/watch?v=…'; inp.value = prefs.videos[def.id] ?? ''; inp.className = 'urlinput';
+          inp.oninput = () => { prefs.videos[def.id] = inp.value.trim(); savePrefs(); showState(); };
+          showState();
+          d.append(inp, state);
+          row.append(d);
+        }
+        row.append(prepBlock(kind, def));
+        if (def.custom) {
+          const del = el('button', 'textbtn', 'Strecke löschen');
+          del.type = 'button';
+          del.onclick = () => { store.set(ROUTES_KEY, store.get(ROUTES_KEY, []).filter((r) => r.id !== def.id)); renderList(); };
+          row.append(del);
+        }
+        return row;
       }
     }
     renderList();
@@ -392,6 +466,47 @@ export function initTraining(root) {
       }
     }
 
+    // Karte: Linie der Strecke mit deiner Position (nur bei GPX-Strecken vorhanden)
+    let mapDot = null, mapPos = null;
+    const extras = [];
+    if (def.track?.length > 1) {
+      const W = 340, H = 170, pad = 12, lat0 = def.track[0][0], k = Math.cos((lat0 * Math.PI) / 180);
+      const xs = def.track.map((p) => p[1] * k), ys = def.track.map((p) => p[0]);
+      const x0 = Math.min(...xs), x1 = Math.max(...xs), y0 = Math.min(...ys), y1 = Math.max(...ys);
+      const sc = Math.min((W - 2 * pad) / (x1 - x0 || 1e-9), (H - 2 * pad) / (y1 - y0 || 1e-9));
+      const px = (i) => [pad + (xs[i] - x0) * sc + (W - 2 * pad - (x1 - x0) * sc) / 2, H - pad - (ys[i] - y0) * sc - (H - 2 * pad - (y1 - y0) * sc) / 2];
+      const map = el('div', 'ridemap');
+      const svg = svgEl('svg', { viewBox: `0 0 ${W} ${H}`, role: 'img', 'aria-label': `Karte der Strecke ${def.name} mit deiner Position` }, map);
+      svgEl('rect', { width: W, height: H, fill: '#e4dfd5' }, svg);
+      svgEl('polyline', { points: def.track.map((_, i) => px(i).map((v) => v.toFixed(1)).join(',')).join(' '), fill: 'none', stroke: INK, 'stroke-width': 2, 'stroke-linejoin': 'round', 'stroke-linecap': 'round' }, svg);
+      const [sx, sy] = px(0), [ex, ey] = px(def.track.length - 1);
+      svgEl('circle', { cx: sx, cy: sy, r: 3.5, fill: '#f3f1ec', stroke: INK, 'stroke-width': 1.5 }, svg);
+      svgEl('rect', { x: ex - 3.5, y: ey - 3.5, width: 7, height: 7, fill: INK }, svg);
+      mapDot = svgEl('circle', { r: 5, fill: ACCENT, stroke: '#f3f1ec', 'stroke-width': 2 }, svg);
+      mapPos = (frac) => { const [x, y] = px(Math.round(Math.max(0, Math.min(1, frac)) * (def.track.length - 1))); mapDot.setAttribute('cx', x); mapDot.setAttribute('cy', y); };
+      map.append(el('small', null, '○ Start · ■ Ziel · ● du'));
+      extras.push(map);
+    }
+    // Video: YouTube-Link der Strecke, Abspieltempo folgt der Fahrgeschwindigkeit
+    let videoCmd = null, lastRate = null;
+    const vid = kind === 'route' ? youtubeId(prefs.videos[def.id]) : null;
+    if (vid) {
+      const box = el('div', 'ridevideo'), frame = el('iframe');
+      frame.src = `https://www.youtube-nocookie.com/embed/${vid}?enablejsapi=1&autoplay=1&mute=1&controls=0&playsinline=1&rel=0`;
+      frame.allow = 'autoplay; encrypted-media';
+      frame.title = `Video zur Strecke ${def.name}`;
+      box.append(frame);
+      extras.unshift(box);
+      videoCmd = (func, args = []) => frame.contentWindow?.postMessage(JSON.stringify({ event: 'command', func, args }), '*');
+    }
+    const syncVideo = () => {
+      if (!videoCmd) return;
+      const rate = ride.paused ? 0 : videoRate(ride.v * 3.6);
+      if (rate === lastRate) return;
+      lastRate = rate;
+      if (rate === 0) videoCmd('pauseVideo'); else { videoCmd('setPlaybackRate', [rate]); videoCmd('playVideo'); }
+    };
+
     const chart = el('div', 'ridechart');
     const pf = profile(kind, def, { H: 130, big: true });
     const trace = svgEl('polyline', { fill: 'none', stroke: ACCENT, 'stroke-width': 1.6, 'stroke-linejoin': 'round' }, pf.svg);
@@ -419,7 +534,7 @@ export function initTraining(root) {
     btn('Beenden', 'primary', () => finishRide());
     const warn = el('p', 'alert');
     warn.hidden = true;
-    root.replaceChildren(top, tiles, gauges, chart, ctl, ...(biasLabel ? [biasLabel] : []), warn);
+    root.replaceChildren(top, ...extras, tiles, gauges, chart, ctl, ...(biasLabel ? [biasLabel] : []), warn);
 
     liveHook = () => {
       if (!ride) return;
@@ -444,6 +559,8 @@ export function initTraining(root) {
       } else {
         time.textContent = clock(ride.t);
         updateGauges(null);
+        mapPos?.(ride.dist / pf.total);
+        syncVideo();
         vTarget.textContent = `${ride.grade > 0 ? '+' : ''}${de(ride.grade, 1)} %`;
         segInfo.textContent = ride.paused ? 'Pausiert' : `noch ${de((pf.total - ride.dist) / 1000, 1)} km · ${de(elevationAt(def, ride.dist))} m ü. M.`;
         cursor.setAttribute('x1', pf.x(ride.dist)); cursor.setAttribute('x2', pf.x(ride.dist));

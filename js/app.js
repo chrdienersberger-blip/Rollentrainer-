@@ -1,10 +1,10 @@
-import { extractSide, coreVisibility, frameAngles, analyzeSession, pickSide } from './analysis.js?v=14';
-import { evaluate, stability, saddleFromInseam, statusOf, rangeOf, STYLES } from './evaluate.js?v=14';
-import { BRANDS, CATEGORIES, findBike } from './bikes.js?v=14';
-import { syntheticSession } from './demo.js?v=14';
-import { putClip, getClip, pruneClips } from './clips.js?v=14';
-import { REGIONS, clipStatuses, share, frameAt, drawOutline, drawSkeleton as drawJoints } from './overlay.js?v=14';
-import { initHero } from './hero.js?v=14';
+import { extractSide, coreVisibility, frameAngles, analyzeSession, pickSide } from './analysis.js?v=15';
+import { evaluate, stability, saddleFromInseam, statusOf, rangeOf, STYLES } from './evaluate.js?v=15';
+import { BRANDS, CATEGORIES, findBike } from './bikes.js?v=15';
+import { syntheticSession } from './demo.js?v=15';
+import { putClip, getClip, pruneClips } from './clips.js?v=15';
+import { REGIONS, clipStatuses, share, frameAt, drawOutline, drawSkeleton as drawJoints } from './overlay.js?v=15';
+import { initHero } from './hero.js?v=15';
 
 const MP_VERSION = '0.10.14';
 const MP_BASE = `https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@${MP_VERSION}`;

@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { parseIndoorBikeData, parseCyclingPower, parseHeartRate, cmdTargetPower, cmdSimulation } from '../js/ftms.js';
-import { WORKOUTS, ROUTES, workoutDuration, targetAt, gradeAt, elevationAt, routeLength, routeClimb, stepSpeed, summarize, toTcx, PLAN, planItem, prepFor, powerZone, hrZone, expectedHrZone, cadenceRange, powerRange, judge } from '../js/workouts.js';
+import { WORKOUTS, ROUTES, workoutDuration, targetAt, gradeAt, elevationAt, routeLength, routeClimb, stepSpeed, summarize, toTcx, PLAN, planItem, prepFor, powerZone, hrZone, expectedHrZone, cadenceRange, powerRange, judge, routeFromTrack, youtubeId, videoRate } from '../js/workouts.js';
 
 const dv = (bytes) => new DataView(Uint8Array.from(bytes).buffer);
 
@@ -191,4 +191,47 @@ test('Trainer: ohne FTMS als reiner Leistungsmesser, Abbruch der Verbindung', as
   await t.queue;
   dropped();
   assert.equal(t.connected, false);
+});
+
+test('Bekannte Anstiege stimmen in Länge und Höhenmetern mit den üblichen Angaben', () => {
+  const r = (id) => ROUTES.find((x) => x.id === id);
+  const check = (id, km, up) => {
+    assert.ok(Math.abs(routeLength(r(id)) / 1000 - km) < 0.11, `${id} Länge ${routeLength(r(id))}`);
+    assert.ok(Math.abs(routeClimb(r(id)) - up) < 15, `${id} Höhenmeter ${routeClimb(r(id))}`);
+    assert.equal(prepFor('route', r(id), 75).level, 'hard');
+  };
+  check('sacalobra', 9.4, 668);
+  check('alpedhuez', 13.8, 1118);
+  check('ventoux', 21.3, 1610);
+  assert.ok(gradeAt(r('alpedhuez'), 500) > 10);
+  assert.ok(gradeAt(r('ventoux'), 2000) < 5);
+});
+
+test('GPX: Strecke aus Trackpunkten', () => {
+  // 5 km genau nach Norden, gleichmäßig 250 m bergauf, mit etwas Höhenrauschen
+  const pts = Array.from({ length: 501 }, (_, i) => ({ lat: 46 + (i * 10) / 111195, lon: 8, ele: 500 + i * 0.5 + (i % 2 ? 1.5 : -1.5) }));
+  const route = routeFromTrack('Testberg', pts);
+  assert.ok(Math.abs(routeLength(route) - 5000) < 30, `Länge ${routeLength(route)}`);
+  assert.ok(Math.abs(routeClimb(route) - 250) < 15, `Höhenmeter ${routeClimb(route)}`);
+  assert.ok(Math.abs(gradeAt(route, 2500) - 5) < 0.6, `Steigung ${gradeAt(route, 2500)}`);
+  assert.equal(route.track.length, route.points.length);
+  assert.ok(route.track.length <= 402);
+  assert.equal(route.hasEle, true);
+  assert.equal(routeFromTrack('zu kurz', pts.slice(0, 20)), null);
+  const flat = routeFromTrack('ohne Höhe', pts.map(({ lat, lon }) => ({ lat, lon })));
+  assert.equal(flat.hasEle, false);
+  assert.equal(routeClimb(flat), 0);
+});
+
+test('Video: YouTube-Kennung und Abspieltempo', () => {
+  assert.equal(youtubeId('https://www.youtube.com/watch?v=abcdefghijk'), 'abcdefghijk');
+  assert.equal(youtubeId('https://youtu.be/abcdefghijk?t=30'), 'abcdefghijk');
+  assert.equal(youtubeId('https://www.youtube.com/watch?list=x&v=ABC_def-123'), 'ABC_def-123');
+  assert.equal(youtubeId('https://www.youtube.com/shorts/abcdefghijk'), 'abcdefghijk');
+  assert.equal(youtubeId('https://example.com/video.mp4'), null);
+  assert.equal(videoRate(0), 0);
+  assert.equal(videoRate(25), 1);
+  assert.equal(videoRate(12), 0.5);
+  assert.equal(videoRate(9), 0.25);
+  assert.equal(videoRate(80), 2);
 });

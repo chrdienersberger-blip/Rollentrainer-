@@ -2,19 +2,22 @@
 // Zwei Wege zum Funkchip: im Browser Web Bluetooth, in der iPhone-App die eingebaute
 // Bluetooth-Technik des Geräts (siehe app/native-ble.js). Beide bieten dieselben fünf Funktionen.
 
-import { UUID, parseIndoorBikeData, parseCyclingPower, parseHeartRate, cmdRequestControl, cmdStart, cmdTargetPower, cmdSimulation } from './ftms.js?v=14';
+import { UUID, parseIndoorBikeData, parseCyclingPower, parseHeartRate, cmdRequestControl, cmdStart, cmdTargetPower, cmdSimulation } from './ftms.js?v=15';
 
 const isNativeApp = () => !!globalThis.Capacitor?.isNativePlatform?.();
 export const bluetoothAvailable = () => isNativeApp() || !!globalThis.navigator?.bluetooth;
 
 const NAMES = ['KICKR', 'Wahoo', 'Tacx', 'Elite', 'Zwift', 'Saris', 'Direto', 'Suito'];
+// Uhren und Gurte, die ihre Herzfrequenz senden, nennen den Dienst nicht immer in ihrer Kennung – deshalb zusätzlich nach Namen suchen
+const HR_NAMES = ['Forerunner', 'fenix', 'Fenix', 'FR', 'Venu', 'vivoactive', 'Instinct', 'Epix', 'epix', 'Enduro', 'Garmin', 'HRM', 'TICKR', 'Polar', 'Suunto', 'COROS'];
 
 /** Web Bluetooth (Chrome, Edge und Spezial-Browser). */
 const webBle = {
   async pick({ all = false, heartRate = false } = {}) {
     const optionalServices = [UUID.ftms, UUID.power, UUID.heartRate];
     const device = await navigator.bluetooth.requestDevice(
-      heartRate ? { filters: [{ services: [UUID.heartRate] }] }
+      heartRate ? (all ? { acceptAllDevices: true, optionalServices: [UUID.heartRate] }
+        : { filters: [{ services: [UUID.heartRate] }, ...HR_NAMES.map((namePrefix) => ({ namePrefix }))], optionalServices: [UUID.heartRate] })
         : all ? { acceptAllDevices: true, optionalServices }
           : { filters: [{ services: [UUID.ftms] }, { services: [UUID.power] }, ...NAMES.map((namePrefix) => ({ namePrefix }))], optionalServices });
     return { name: device.name, device, chars: new Map() };
@@ -104,11 +107,19 @@ export class Trainer {
     this.onChange();
   }
 
-  async connectHeartRate() {
+  async connectHeartRate(all = false) {
     const ble = this.transport ?? await defaultTransport();
-    const h = await ble.pick({ heartRate: true });
+    const h = await ble.pick({ heartRate: true, all });
     await ble.open(h, () => { this.hrName = ''; this.data.hr = null; this.onChange(); });
-    await ble.listen(h, UUID.heartRate, UUID.heartRateMeasurement, (dv) => this.push({ hr: parseHeartRate(dv) }));
+    try {
+      await ble.listen(h, UUID.heartRate, UUID.heartRateMeasurement, (dv) => this.push({ hr: parseHeartRate(dv) }));
+    } catch (err) {
+      // verbunden, aber das Gerät bietet keine Herzfrequenz an – bei Uhren ist dann das Senden nicht eingeschaltet
+      ble.close(h);
+      const e = new Error(`${h.name || 'Das Gerät'} sendet keine Herzfrequenz (${err?.name ?? err})`);
+      e.name = 'NoHeartRate';
+      throw e;
+    }
     this.hrHandle = h;
     this.hrName = h.name || 'Herzfrequenz-Sensor';
     this.onChange();

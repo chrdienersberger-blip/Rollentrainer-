@@ -428,3 +428,18 @@ body.norail .ridetop { padding-left: 54px; }
 .gseg span { position: absolute; left: 4px; top: 50%; transform: translateY(-50%); font-size: .52rem; font-style: normal; color: var(--ink); letter-spacing: .04em; }
 .gmark { position: absolute; top: -4px; bottom: -4px; width: 3px; margin-left: -1.5px; background: var(--ink); box-shadow: 0 0 0 2px var(--bg); }
 #training .grid2 { row-gap: 16px; }
+
+/* Strecken: Gruppen, GPX, Karte, Video */
+.wklist > .lbl { margin-top: 24px; padding-top: 14px; border-top: 1px solid var(--ink); color: var(--ink); font-weight: 600; }
+.wklist > .lbl + .wk { border-top: 0; }
+.wkplace { font-size: .62rem; text-transform: uppercase; letter-spacing: .1em; color: var(--muted); margin: 8px 0 0; }
+.gpx { padding: 10px 0 4px; }
+.gpx .filebtn { margin: 0; }
+.urlinput { font: inherit; width: 100%; border: 0; border-bottom: 1px solid var(--ink); background: transparent; padding: 8px 0; margin: 4px 0 0; border-radius: 0; font-size: .9rem; }
+.wk > .textbtn { margin-top: 8px; color: var(--bad); }
+.ridemap { margin: 0 -20px; background: var(--panel); position: relative; }
+.ridemap svg { display: block; width: 100%; height: auto; }
+.ridemap small { position: absolute; left: 20px; bottom: 6px; font-size: .56rem; letter-spacing: .08em; color: var(--muted); text-transform: uppercase; }
+.ridevideo { margin: 0 -20px; background: #000; aspect-ratio: 16 / 9; }
+.ridevideo iframe { width: 100%; height: 100%; border: 0; display: block; pointer-events: none; }
+@media (min-width: 620px) { .ridemap, .ridevideo { margin: 0; } }

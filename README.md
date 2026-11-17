@@ -65,6 +65,16 @@ Die Messgenauigkeit liegt bei etwa ±3–5°. Aus der Seitenansicht sind seitlic
 Kniebewegungen und die Cleat-Stellung nicht erkennbar. Die Zielbereiche sind
 Richtwerte und ersetzen kein professionelles Bikefitting.
 
+## Strecken
+
+- **Bekannte Anstiege** (Sa Calobra, Alpe d’Huez, Mont Ventoux): Länge und Höhenmeter
+  entsprechen den üblichen Angaben, der Steigungsverlauf ist aus Kilometer-Mittelwerten
+  angenähert. Es sind keine vermessenen GPS-Tracks.
+- **Eigene Strecken:** Jede GPX-Datei lässt sich laden; daraus entstehen Höhenprofil
+  und Kartenlinie.
+- **Video:** Pro Strecke kann ein YouTube-Link hinterlegt werden. Das Video läuft
+  während der Fahrt mit, das Abspieltempo folgt der Fahrgeschwindigkeit.
+
 ## Titelfoto
 
 Die Startseite zeigt eine Zeichnung. Liegt im Projekt eine Datei `img/hero.jpg`
