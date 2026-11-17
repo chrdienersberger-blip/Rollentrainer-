@@ -45,6 +45,7 @@ Danach ist die App unter `https://<benutzer>.github.io/<repo>/` erreichbar.
 | `js/world3d.js` | 3D-Welt der Strecken (WebGL) |
 | `js/world.js` | Kurven der Strecken, einfache Ansicht ohne WebGL |
 | `js/vendor/` | three.js (MIT-Lizenz, siehe `three.LICENSE`) |
+| `js/strava.js` | Verbindung zu Strava, direkter Upload |
 | `js/fit.js` | Export einer Fahrt als FIT-Datei |
 | `js/workouts.js` | Workouts, Strecken, Fahrphysik, Kennzahlen, TCX |
 | `js/market.js` | Marketplace-Verzeichnis |
@@ -82,6 +83,15 @@ Richtwerte und ersetzen kein professionelles Bikefitting.
   Höhenprofil; ihr Verlauf kommt bei GPX-Strecken aus dem Track, sonst ist er mit der
   passenden Zahl an Kehren nachgebildet. Die Landschaft drumherum ist erzeugt, nicht
   vermessen. Ohne WebGL gibt es eine einfache gezeichnete Ansicht.
+
+## Strava und Garmin
+
+- **Strava:** Direkter Upload über die offizielle Strava-API. Einmalig eine eigene API-App
+  unter strava.com/settings/api anlegen (Callback-Domain = Domain dieser Seite) und Client ID
+  und Secret in Training → Strava eintragen. Die Zugangsdaten bleiben im Speicher des Browsers.
+  Nach dem Upload öffnet „In Strava öffnen“ die Aktivität (auf dem iPhone in der Strava-App).
+- **Garmin Connect:** Garmin bietet keine offene Upload-Schnittstelle. Die Fahrt als FIT-Datei
+  exportieren und über connect.garmin.com/modern/import-data importieren.
 
 ## Titelfoto
 

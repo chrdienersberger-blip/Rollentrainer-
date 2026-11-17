@@ -1,8 +1,9 @@
 // Trainingsbereich: Trainer verbinden, Workouts (ERG) und Strecken (Steigungssimulation) fahren.
 
-import { Trainer, bluetoothAvailable } from './trainer.js?v=22';
+import { stravaState, saveCredentials, setAuto, disconnect as stravaDisconnect, connect as stravaConnect, handleRedirect, uploadFit, activityUrl, redirectUri } from './strava.js?v=23';
+import { Trainer, bluetoothAvailable } from './trainer.js?v=23';
 import { WORKOUTS, ROUTES, workoutDuration, routeLength, routeClimb, routeFromTrack, targetAt, gradeAt, elevationAt, stepSpeed, summarize, toTcx, PLAN, planItem, prepFor, trainerGrade, ergNext, isPedaling,
-  POWER_ZONES, HR_ZONES, powerZone, hrZone, expectedHrZone, cadenceRange, powerRange, judge } from './workouts.js?v=22';
+  POWER_ZONES, HR_ZONES, powerZone, hrZone, expectedHrZone, cadenceRange, powerRange, judge } from './workouts.js?v=23';
 
 const PREFS_KEY = 'rollentrainer.training.v1', RIDES_KEY = 'rollentrainer.rides.v1', ROUTES_KEY = 'rollentrainer.routes.v1';
 const SVGNS = 'http://www.w3.org/2000/svg';
@@ -119,7 +120,7 @@ export function initTraining(root) {
     // Sprungleiste
     const jb = el('nav', 'jumpbar');
     jb.setAttribute('aria-label', 'Auf dieser Seite');
-    for (const [label, id] of [['Trainer', 'tr-trainer'], ['Werte', 'tr-werte'], ['Plan', 'plan'], ['Einheiten', 'tr-einheiten'], ...(store.get(RIDES_KEY, []).length ? [['Fahrten', 'rideHistory']] : [])]) { const b = el('button', null, label); b.type = 'button'; b.dataset.jump = id; jb.append(b); }
+    for (const [label, id] of [['Trainer', 'tr-trainer'], ['Werte', 'tr-werte'], ['Plan', 'plan'], ['Einheiten', 'tr-einheiten'], ...(store.get(RIDES_KEY, []).length ? [['Fahrten', 'rideHistory']] : []), ['Strava', 'tr-strava']]) { const b = el('button', null, label); b.type = 'button'; b.dataset.jump = id; jb.append(b); }
     root.append(jb);
 
     // Trainer
@@ -395,7 +396,104 @@ export function initTraining(root) {
       }
       root.append(hist);
     }
+    root.append(stravaCard());
     root.append(el('p', 'note', 'Die Fahrten werden nur im Speicher dieses Browsers abgelegt. Trainiere nur, wenn du gesund bist; brich ab, wenn dir schwindlig wird oder etwas schmerzt.'));
+  }
+
+  // ---------- Strava ----------
+  /** Karte zum Einrichten und Verbinden; die Zugangsdaten bleiben nur in diesem Browser. */
+  function stravaCard() {
+    const card = el('section', 'card');
+    card.id = 'tr-strava';
+    const step = el('div', 'step');
+    step.append(el('span', null, '5'), el('h2', null, 'Strava'));
+    card.append(step);
+    const st = stravaState();
+    if (st.connected) {
+      const who = st.athlete ? `${st.athlete.firstname ?? ''} ${st.athlete.lastname ?? ''}`.trim() : '';
+      const row = el('div', 'devstatus');
+      row.append(el('span', 'dot on'), Object.assign(el('div'), { innerHTML: '' }));
+      row.lastChild.append(el('b', null, who ? `Verbunden als ${who}` : 'Mit Strava verbunden'), el('small', null, 'Fahrten lassen sich nach dem Training mit einem Tipp hochladen.'));
+      const auto = el('label', 'check');
+      const box = el('input'); box.type = 'checkbox'; box.checked = st.auto; box.onchange = () => setAuto(box.checked);
+      const txt = el('span'); txt.append(el('b', null, 'Jede Fahrt automatisch hochladen'), el('small', null, 'Gilt für Fahrten ab einer Minute.'));
+      auto.append(box, txt);
+      const off = el('button', 'textbtn', 'Verbindung trennen'); off.type = 'button';
+      off.onclick = () => { stravaDisconnect(); card.replaceWith(stravaCard()); };
+      card.append(row, auto, off);
+      return card;
+    }
+    card.append(el('p', 'hint', 'Ride More lädt deine Fahrten direkt in dein Strava-Konto und öffnet sie danach in der Strava-App. Dafür legst du einmalig eine eigene „API-App“ bei Strava an – das ist kostenlos und dauert zwei Minutes.'.replace('Minutes', 'Minuten')));
+    const steps = el('ol', 'steps');
+    for (const t of [
+      'Auf strava.com/settings/api anmelden und „Create & Manage Your App“ wählen.',
+      'Application Name: „Ride More“, Category: „Training“, Website: diese Seite.',
+      `Authorization Callback Domain: ${location.hostname} – genau so, ohne https://.`,
+      'Speichern, dann Client ID und Client Secret unten eintragen.',
+    ]) steps.append(el('li', null, t));
+    const link = el('a', 'textbtn', 'strava.com/settings/api öffnen ↗');
+    link.href = 'https://www.strava.com/settings/api'; link.target = '_blank'; link.rel = 'noopener';
+    const grid = el('div', 'grid2');
+    const field = (label, type) => { const l = el('label', null, label), f = el('span', 'field'), i = el('input'); i.type = type; i.autocomplete = 'off'; i.style.paddingRight = '0'; f.append(i); l.append(f); grid.append(l); return i; };
+    const id = field('Client ID', 'text'), secret = field('Client Secret', 'password');
+    id.inputMode = 'numeric'; id.value = st.clientId;
+    const msg = el('p', 'hint');
+    const go = el('button', 'primary', 'Mit Strava verbinden'); go.type = 'button';
+    go.onclick = () => {
+      if (!/^\d+$/.test(id.value.trim()) || secret.value.trim().length < 20) { msg.textContent = 'Bitte Client ID (nur Ziffern) und Client Secret aus den Strava-Einstellungen eintragen.'; return; }
+      saveCredentials(id.value, secret.value);
+      stravaConnect();
+    };
+    card.append(steps, link, grid, go, msg, el('p', 'prepnote', 'Client ID und Secret bleiben nur im Speicher dieses Browsers auf deinem Gerät und werden ausschließlich an Strava geschickt. Gib sie nicht weiter.'));
+    if (st.configured) { secret.placeholder = 'gespeichert'; go.onclick = () => (secret.value ? (saveCredentials(id.value, secret.value), stravaConnect()) : stravaConnect()); }
+    return card;
+  }
+
+  function markUploaded(date, activityId) {
+    const list = store.get(RIDES_KEY, []), r = list.find((x) => x.date === date);
+    if (r) { r.strava = activityId; store.set(RIDES_KEY, list); }
+  }
+
+  /** Strava-Bereich in der Auswertung: hochladen, Fortschritt, danach „In Strava öffnen“. */
+  function stravaBlock(r, autoStart = false) {
+    const box = el('section', 'card stravabox'), status = el('p', 'hint'), st = stravaState();
+    box.append(el('h2', null, 'Teilen'));
+    const open = (id) => {
+      const a = el('a', 'primary btnlink', 'In Strava öffnen');
+      a.href = activityUrl(id); a.target = '_blank'; a.rel = 'noopener';
+      box.append(a);
+    };
+    if (r.strava) { status.textContent = 'Diese Fahrt ist schon bei Strava.'; box.append(status); open(r.strava); return box; }
+    const btn = el('button', 'primary', st.connected ? 'Zu Strava hochladen' : st.configured ? 'Mit Strava verbinden und hochladen' : 'Strava einrichten');
+    btn.type = 'button';
+    const run = async () => {
+      if (!stravaState().connected) {
+        if (stravaState().configured) return stravaConnect(r.date);
+        home(); document.getElementById('tr-strava')?.scrollIntoView({ behavior: 'smooth' }); return;
+      }
+      btn.disabled = true;
+      try {
+        const { toFit } = await import('./fit.js?v=23');
+        const s2 = r.stats;
+        const res = await uploadFit(toFit(r.date, r.samples), {
+          name: `${r.name} · Ride More`,
+          description: `Indoor-Training mit Ride More. ${clock(s2.duration)}, Ø ${s2.avgPower} W, NP ${s2.np} W, TSS ${s2.tss}${s2.avgHr ? `, Ø Puls ${s2.avgHr}` : ''}.`,
+          externalId: `ridemore-${r.date}`,
+        }, (t) => { status.textContent = t; });
+        markUploaded(r.date, res.activityId);
+        status.textContent = res.duplicate ? 'Diese Fahrt war schon bei Strava.' : 'Fertig – die Fahrt ist bei Strava.';
+        btn.remove();
+        open(res.activityId);
+      } catch (err) {
+        status.textContent = err.message;
+        btn.disabled = false;
+        btn.textContent = 'Noch einmal versuchen';
+      }
+    };
+    btn.onclick = run;
+    box.append(btn, status);
+    if (autoStart && st.connected) run();
+    return box;
   }
 
   // ---------- Fahrt ----------
@@ -487,11 +585,11 @@ export function initTraining(root) {
     const extras = [];
     if (kind === 'route') {
       // echte 3D-Welt, wo das Gerät WebGL kann; sonst die einfache gezeichnete Ansicht
-      const w3 = await import('./world3d.js?v=22').catch(() => null);
+      const w3 = await import('./world3d.js?v=23').catch(() => null);
       if (w3?.webglAvailable()) {
         try { world = w3.createWorld3D(def); } catch (err) { console.error(err); world = null; }
       }
-      if (!world) world = (await import('./world.js?v=22')).createWorld(def);
+      if (!world) world = (await import('./world.js?v=23')).createWorld(def);
       ride.world = world;
       extras.push(world.el);
     }
@@ -634,11 +732,12 @@ export function initTraining(root) {
       const list = [done, ...store.get(RIDES_KEY, [])].slice(0, 10).map((r, i) => (i < 3 ? r : { ...r, samples: null }));
       if (!store.set(RIDES_KEY, list)) store.set(RIDES_KEY, list.map((r) => ({ ...r, samples: null })));
     }
-    summary(done, false);
+    const st = stravaState();
+    summary(done, false, st.connected && st.auto && done.stats.duration >= 60);
   }
 
   // ---------- Auswertung ----------
-  function summary(r, stored) {
+  function summary(r, stored, autoUpload = false) {
     const s = r.stats;
     window.scrollTo(0, 0);
     root.replaceChildren(header(new Date(r.date).toLocaleString('de-DE', { dateStyle: 'medium', timeStyle: 'short' })));
@@ -728,7 +827,7 @@ export function initTraining(root) {
       const fitBtn = el('button', 'primary', 'Fahrt exportieren (FIT)');
       fitBtn.type = 'button';
       fitBtn.onclick = async () => {
-        const { toFit } = await import('./fit.js?v=22');
+        const { toFit } = await import('./fit.js?v=23');
         deliver(new File([toFit(r.date, r.samples)], `ridemore-${stamp}.fit`, { type: 'application/octet-stream' }));
       };
       const tcxBtn = el('button', 'textbtn', 'Stattdessen als TCX-Datei');
@@ -737,8 +836,8 @@ export function initTraining(root) {
       const how = el('details', 'prep');
       how.append(el('summary', null, 'So kommt die Fahrt zu Strava & Co.'));
       for (const [k, v] of [
-        ['Strava', 'Am Rechner oder im Handy-Browser strava.com/upload/select öffnen, „Datei“ wählen und die FIT-Datei hochladen. In der Strava-App selbst gibt es keinen Datei-Upload.'],
-        ['Garmin Connect', 'Auf connect.garmin.com oben rechts auf das Wolken-Symbol „Importieren“ und die FIT-Datei wählen.'],
+        ['Strava', 'Am einfachsten oben über „Zu Strava hochladen“. Ohne Verbindung: im Browser strava.com/upload/select öffnen und die FIT-Datei hochladen – in der Strava-App gibt es keinen Datei-Upload.'],
+        ['Garmin Connect', 'Über den Knopf „Garmin Connect: Import öffnen“ oder auf connect.garmin.com das Wolken-Symbol „Importieren“, dann die FIT-Datei wählen.'],
         ['TrainingPeaks, intervals.icu', 'Die FIT-Datei im Kalender auf den Tag ziehen oder über „Upload“ hochladen.'],
         ['Wahoo', 'Die Wahoo-App nimmt nach meinem Stand keine fremden Dateien an. Der übliche Weg: zu Strava hochladen und Strava in der Wahoo-App verknüpfen.'],
       ]) {
@@ -746,7 +845,11 @@ export function initTraining(root) {
         row.append(el('b', null, k), el('p', null, v));
         how.append(row);
       }
-      root.append(fitBtn, tcxBtn, note, how);
+      const garmin = el('a', 'secondary btnlink', 'Garmin Connect: Import öffnen ↗');
+      garmin.href = 'https://connect.garmin.com/modern/import-data'; garmin.target = '_blank'; garmin.rel = 'noopener';
+      const fileHead = el('h2', null, 'Als Datei');
+      root.append(stravaBlock(r, autoUpload), fileHead, fitBtn, tcxBtn, note, garmin,
+        el('p', 'hint', 'Für Garmin: erst „Fahrt exportieren (FIT)“ und „In Dateien sichern“, dann auf der Garmin-Connect-Seite die Datei auswählen. Die Garmin-App selbst kann keine Dateien importieren.'), how);
     } else if (stored) {
       root.append(el('p', 'hint', 'Für diese ältere Fahrt sind nur die Kennzahlen gespeichert.'));
     }
@@ -757,4 +860,15 @@ export function initTraining(root) {
   }
 
   home();
+  handleRedirect().then((res) => {
+    if (!res) return;
+    const ride = res.pendingRide && store.get(RIDES_KEY, []).find((x) => x.date === res.pendingRide);
+    if (res.connected && ride) { summary(ride, true, true); return; }
+    home();
+    const card = document.getElementById('tr-strava');
+    if (card) {
+      card.prepend(el('p', res.connected ? 'okmsg' : 'alert', res.connected ? 'Mit Strava verbunden.' : res.error));
+      card.scrollIntoView({ block: 'start' });
+    }
+  });
 }
