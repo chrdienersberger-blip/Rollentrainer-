@@ -1,8 +1,8 @@
 // Trainingsbereich: Trainer verbinden, Workouts (ERG) und Strecken (Steigungssimulation) fahren.
 
-import { Trainer, bluetoothAvailable } from './trainer.js?v=19';
+import { Trainer, bluetoothAvailable } from './trainer.js?v=20';
 import { WORKOUTS, ROUTES, workoutDuration, routeLength, routeClimb, routeFromTrack, targetAt, gradeAt, elevationAt, stepSpeed, summarize, toTcx, PLAN, planItem, prepFor,
-  POWER_ZONES, HR_ZONES, powerZone, hrZone, expectedHrZone, cadenceRange, powerRange, judge } from './workouts.js?v=19';
+  POWER_ZONES, HR_ZONES, powerZone, hrZone, expectedHrZone, cadenceRange, powerRange, judge } from './workouts.js?v=20';
 
 const PREFS_KEY = 'rollentrainer.training.v1', RIDES_KEY = 'rollentrainer.rides.v1', ROUTES_KEY = 'rollentrainer.routes.v1';
 const SVGNS = 'http://www.w3.org/2000/svg';
@@ -475,8 +475,12 @@ export function initTraining(root) {
     let mapDot = null, mapPos = null, world = null;
     const extras = [];
     if (kind === 'route') {
-      const { createWorld } = await import('./world.js?v=19');
-      world = createWorld(def);
+      // echte 3D-Welt, wo das Gerät WebGL kann; sonst die einfache gezeichnete Ansicht
+      const w3 = await import('./world3d.js?v=20').catch(() => null);
+      if (w3?.webglAvailable()) {
+        try { world = w3.createWorld3D(def); } catch (err) { console.error(err); world = null; }
+      }
+      if (!world) world = (await import('./world.js?v=20')).createWorld(def);
       ride.world = world;
       extras.push(world.el);
     }
@@ -697,7 +701,7 @@ export function initTraining(root) {
       const fitBtn = el('button', 'primary', 'Fahrt exportieren (FIT)');
       fitBtn.type = 'button';
       fitBtn.onclick = async () => {
-        const { toFit } = await import('./fit.js?v=19');
+        const { toFit } = await import('./fit.js?v=20');
         deliver(new File([toFit(r.date, r.samples)], `ridemore-${stamp}.fit`, { type: 'application/octet-stream' }));
       };
       const tcxBtn = el('button', 'textbtn', 'Stattdessen als TCX-Datei');

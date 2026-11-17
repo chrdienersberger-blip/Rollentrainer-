@@ -2,7 +2,7 @@
 // Rennspielen), die dem Höhenprofil und den Kurven der Strecke folgt – mit dem eigenen Fahrer von hinten.
 // buildCourse/courseCurvature sind reine Rechenlogik (testbar ohne Browser), createWorld zeichnet.
 
-import { routeLength, elevationAt } from './workouts.js?v=19';
+import { routeLength, elevationAt } from './workouts.js?v=20';
 
 export const SEG = 5;                 // Länge eines Straßenabschnitts in Metern
 export const PRE = 12;                // Abschnitte vor dem Start
@@ -53,19 +53,29 @@ export function courseCurvature(route) {
     }
   } else {
     const r = rng(hash(route.id ?? route.name));
-    for (let pos = r() * 150; pos < len;) {
-      const L = 80 + r() * 260;
-      fill(pos, pos + L, (r() < 0.5 ? -1 : 1) / (120 + r() * 500));
-      pos += L + 40 + r() * 200;
-    }
-    const H = HAIRPINS[route.id] ?? 0;
+    // Kehren zuerst, auf ganzen Abschnitten. Eine Kehre dreht um etwas weniger als eine halbe Umdrehung,
+    // damit die Abschnitte wie am echten Hang leicht schräg verlaufen und sich zum Ende hin auffächern.
+    const H = HAIRPINS[route.id] ?? 0, busy = new Uint8Array(n), beta = { sacalobra: 0.09, alpedhuez: 0.17, ventoux: 0.2, pass: 0.14 }[route.id] ?? 0.12;
     for (let h = 0; h < H; h++) {
       const at = (len * (h + 0.5)) / H + (r() - 0.5) * (len / H) * 0.3, dir = h % 2 ? 1 : -1;
-      fill(at - 28, at + 28, dir * MAX_K);
+      const segs = Math.round(Math.PI / MAX_K / SEG), a = Math.max(0, Math.min(n - segs, Math.round(at / SEG) - Math.floor(segs / 2)));
+      for (let i = a; i < a + segs; i++) k[i] = (dir * (Math.PI - 2 * beta)) / (segs * SEG);
+      for (let i = Math.max(0, a - 12); i < Math.min(n, a + segs + 12); i++) busy[i] = 1;
       hairpins.push({ at, dir, num: H - h });
     }
+    // Schlenker aus Biegung, doppelter Gegenbiegung und Biegung (ganze Abschnitte): Richtung und
+    // Seitenlage kehren exakt zurück. Bei Serpentinen kleiner, und nie in eine Kehre hinein.
+    const amp = H ? 0.1 : 0.32;
+    for (let i0 = Math.round((r() * 150) / SEG); i0 < n;) {
+      const nL = 10 + Math.floor(r() * 18), kk = ((r() < 0.5 ? -1 : 1) * amp * (0.5 + r() * 0.5)) / (nL * SEG);
+      if (i0 + 4 * nL >= n) break;
+      let free = true;
+      for (let i = i0; i < i0 + 4 * nL; i++) if (busy[i]) { free = false; break; }
+      if (free) for (let i = 0; i < 4 * nL; i++) k[i0 + i] = i < nL || i >= 3 * nL ? kk : -kk;
+      i0 += 4 * nL + 8 + Math.floor((r() * 200) / SEG);
+    }
   }
-  for (let i = 0; i < n; i++) k[i] = Math.max(-MAX_K, Math.min(MAX_K, k[i]));
+  for (let i = 0; i < n; i++) k[i] = Math.max(-MAX_K * 1.05, Math.min(MAX_K * 1.05, k[i]));
   return { k, hairpins };
 }
 

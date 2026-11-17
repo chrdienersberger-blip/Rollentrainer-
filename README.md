@@ -42,7 +42,9 @@ Danach ist die App unter `https://<benutzer>.github.io/<repo>/` erreichbar.
 | `js/training.js` | Trainingsbereich: Übersicht, Fahrt, Auswertung |
 | `js/trainer.js` | Bluetooth-Verbindung zum Trainer, Demo-Trainer |
 | `js/ftms.js` | Trainer-Protokoll (FTMS, Leistungsmesser, Puls) |
-| `js/world.js` | 3D-Fahransicht der Strecken |
+| `js/world3d.js` | 3D-Welt der Strecken (WebGL) |
+| `js/world.js` | Kurven der Strecken, einfache Ansicht ohne WebGL |
+| `js/vendor/` | three.js (MIT-Lizenz, siehe `three.LICENSE`) |
 | `js/fit.js` | Export einer Fahrt als FIT-Datei |
 | `js/workouts.js` | Workouts, Strecken, Fahrphysik, Kennzahlen, TCX |
 | `js/market.js` | Marketplace-Verzeichnis |
@@ -74,10 +76,12 @@ Richtwerte und ersetzen kein professionelles Bikefitting.
   angenähert. Es sind keine vermessenen GPS-Tracks.
 - **Eigene Strecken:** Jede GPX-Datei lässt sich laden; daraus entstehen Höhenprofil
   und Kartenlinie.
-- **Fahransicht:** Strecken werden als gezeichnete 3D-Straße aus der Verfolgerperspektive
-  gezeigt (Pseudo-3D wie bei klassischen Rennspielen): Höhenprofil, Kurven, Kehren,
-  Kilometersteine, Hang und Tal. Bei GPX-Strecken stammen die Kurven aus dem Track,
-  sonst sind sie nachgebildet. Es ist kein gefilmtes Video.
+- **Fahransicht:** Strecken werden als 3D-Welt aus der Verfolgerperspektive gezeigt
+  (WebGL mit three.js): Gelände mit Detailstufen, Straße mit Markierung, Bäume, Felsen,
+  Himmel, Sonnenlicht mit Schatten und ein tretender 3D-Fahrer. Die Straße folgt dem
+  Höhenprofil; ihr Verlauf kommt bei GPX-Strecken aus dem Track, sonst ist er mit der
+  passenden Zahl an Kehren nachgebildet. Die Landschaft drumherum ist erzeugt, nicht
+  vermessen. Ohne WebGL gibt es eine einfache gezeichnete Ansicht.
 
 ## Titelfoto
 

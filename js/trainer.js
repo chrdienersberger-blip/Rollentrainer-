@@ -2,7 +2,7 @@
 // Zwei Wege zum Funkchip: im Browser Web Bluetooth, in der iPhone-App die eingebaute
 // Bluetooth-Technik des Geräts (siehe app/native-ble.js). Beide bieten dieselben fünf Funktionen.
 
-import { UUID, parseIndoorBikeData, parseCyclingPower, parseHeartRate, cmdRequestControl, cmdStart, cmdTargetPower, cmdSimulation } from './ftms.js?v=19';
+import { UUID, parseIndoorBikeData, parseCyclingPower, parseHeartRate, cmdRequestControl, cmdStart, cmdTargetPower, cmdSimulation } from './ftms.js?v=20';
 
 const isNativeApp = () => !!globalThis.Capacitor?.isNativePlatform?.();
 export const bluetoothAvailable = () => isNativeApp() || !!globalThis.navigator?.bluetooth;

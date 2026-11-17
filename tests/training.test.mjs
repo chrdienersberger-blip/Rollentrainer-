@@ -258,7 +258,7 @@ test('3D-Strecke: Kurven aus GPS-Track und nachgebildete Kehren', async () => {
   assert.equal(course.segs[PRE].z, 0);
   const j = PRE + 400;
   assert.ok(Math.abs(course.segs[j].y - elevationAt(sc, 400 * SEG) * EXAG) < 1e-6);
-  assert.ok(course.segs.every((s) => Math.abs(s.c) <= MAX_K * SEG * SEG + 1e-9));
+  assert.ok(course.segs.every((s) => Math.abs(s.c) <= MAX_K * 1.05 * SEG * SEG + 1e-9));
   const sprites = course.segs.flatMap((s) => s.sprites);
   assert.equal(sprites.filter((x) => x.t === 'km').length, 10);
   assert.equal(sprites.filter((x) => x.t === 'chevron').length, 26);
@@ -266,4 +266,15 @@ test('3D-Strecke: Kurven aus GPS-Track und nachgebildete Kehren', async () => {
   assert.ok(sprites.filter((x) => !['km', 'chevron', 'banner'].includes(x.t)).every((x) => Math.abs(x.x) > course.half + 2));
   const alpe = buildCourse(ROUTES.find((r) => r.id === 'alpedhuez')).segs.flatMap((s) => s.sprites).filter((x) => x.t === 'chevron');
   assert.deepEqual([alpe[0].num, alpe.at(-1).num], [21, 1]);
+});
+
+test('3D-Straße: Kehren liegen parallel übereinander, die Straße kreuzt sich nicht', async () => {
+  const { roadPath } = await import('../js/world3d.js');
+  for (const id of ['sacalobra', 'alpedhuez', 'ventoux', 'pass', 'hills', 'flat']) {
+    const r = roadPath(ROUTES.find((x) => x.id === id));
+    // kleinster Abstand zwischen Straßenstücken, die entlang der Strecke mehr als 200 m auseinanderliegen
+    let min = Infinity;
+    for (let i = 0; i < r.n; i += 4) for (let j = i + 40; j < r.n; j += 4) min = Math.min(min, Math.hypot(r.X[i] - r.X[j], r.Z[i] - r.Z[j]));
+    assert.ok(min > 18, `${id}: Straßen nur ${min.toFixed(1)} m auseinander`);
+  }
 });
