@@ -10,7 +10,7 @@ on:
 
 jobs:
   ipa:
-    runs-on: macos-15
+    runs-on: macos-latest
     timeout-minutes: 40
     steps:
       - uses: actions/checkout@v4
