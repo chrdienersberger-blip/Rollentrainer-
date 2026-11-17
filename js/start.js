@@ -1,12 +1,19 @@
 // Startseite: Überblick über die drei Bereiche, mit gezeichneten Grafiken.
 
-import { initHero, buildBike } from './hero.js?v=16';
-import { findBike } from './bikes.js?v=16';
-import { WORKOUTS, ROUTES, workoutDuration, routeLength } from './workouts.js?v=16';
+import { initHero, buildBike } from './hero.js?v=17';
+import { findBike } from './bikes.js?v=17';
+import { WORKOUTS, ROUTES, workoutDuration, routeLength } from './workouts.js?v=17';
 
 const SVGNS = 'http://www.w3.org/2000/svg';
 const INK = '#111110', PANEL = '#e4dfd5', MUTED = '#77736b', ACCENT = '#a8553a', GRID = '#d3cdc1';
 const FONT = 'Helvetica Neue, Helvetica, Arial, sans-serif';
+/** Schriftzug mit Berg-Logo für die Kopfzeile. */
+const brandName = () => {
+  const b = document.createElement('span');
+  b.className = 'brandname';
+  b.innerHTML = '<svg class="logo small" viewBox="0 0 64 34" aria-hidden="true"><path d="M2 32 25 5l9 10.5L41 8l21 24H51.5L41 19.6l-6.6 7.6L25 16.2 13 32z" fill="currentColor"/></svg>Ride More';
+  return b;
+};
 const el = (tag, cls, text) => {
   const e = document.createElement(tag);
   if (cls) e.className = cls;
@@ -90,13 +97,13 @@ function names() {
 
 export function renderStart(root) {
   const head = el('header', 'brand');
-  head.append(el('span', 'brandname', 'Antritt'), el('span', 'brandtag', 'Für Rennrad-Einsteiger'));
+  head.append(brandName(), el('span', 'brandtag', 'Für Rennrad-Einsteiger'));
 
   const hero = el('section', 'hero');
   const text = el('div', 'herotext');
   text.append(el('div', 'eyebrow dark', 'Dein Einstieg ins Rennradfahren'),
     el('h1', null, 'Vom ersten Rad bis zur ersten Ausfahrt.'),
-    el('p', null, 'Antritt begleitet dich Schritt für Schritt: das passende Rad finden, richtig ausstatten, richtig sitzen und mit einem Einsteigerplan losfahren.'));
+    el('p', null, 'Ride More begleitet dich Schritt für Schritt: das passende Rad finden, richtig ausstatten, richtig sitzen und mit einem Einsteigerplan losfahren.'));
   const cta = el('a', 'primary btnlink', 'Los geht’s');
   cta.href = '#markt';
   text.append(cta);
@@ -107,7 +114,7 @@ export function renderStart(root) {
   // eigenes Foto, falls vorhanden
   const photo = new Image();
   photo.onload = () => { photo.className = 'herophoto'; photo.alt = 'Rennradfahrer in einer Kehre einer Bergstraße, darüber der Schriftzug „Ride More – Deine Tour. Dein Moment.“'; art.replaceChildren(photo); };
-  photo.src = 'img/hero.jpg?v=16';
+  photo.src = 'img/hero.jpg?v=17';
 
   // Dein Weg in vier Schritten
   const starter = (() => { try { return JSON.parse(localStorage.getItem('rollentrainer.starter.v1')) ?? {}; } catch { return {}; } })();
@@ -170,5 +177,5 @@ export function renderStart(root) {
     root.append(last);
   }
   root.append(el('p', 'note', 'Alle Daten bleiben auf deinem Gerät. Die Grafiken sind gezeichnet; die Bike-Fitting-Messung ist eine Orientierung und ersetzt kein professionelles Bikefitting.'),
-    el('p', 'note ver', 'Antritt · Version 16'));
+    el('p', 'note ver', 'Ride More · Version 17'));
 }

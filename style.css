@@ -218,7 +218,6 @@ body.busy .sec { margin-left: 0; }
 @media (min-width: 900px) {
   .rail { width: 210px; padding-top: 22px; }
   .rail a.raillogo { text-align: left; padding: 4px 24px 26px; font-size: 1.1rem; letter-spacing: .1em; }
-  .rail a.raillogo::after { content: "NTRITT"; }
   .rail a { flex-direction: row; gap: 14px; padding: 14px 22px; font-size: .68rem; letter-spacing: var(--caps); text-align: left; }
   .sec { margin-left: 210px; }
 }
@@ -435,15 +434,58 @@ body.norail .ridetop { padding-left: 54px; }
 .wkplace { font-size: .62rem; text-transform: uppercase; letter-spacing: .1em; color: var(--muted); margin: 8px 0 0; }
 .gpx { padding: 10px 0 4px; }
 .gpx .filebtn { margin: 0; }
-.urlinput { font: inherit; width: 100%; border: 0; border-bottom: 1px solid var(--ink); background: transparent; padding: 8px 0; margin: 4px 0 0; border-radius: 0; font-size: .9rem; }
+.unused-urlinput { font: inherit; width: 100%; border: 0; border-bottom: 1px solid var(--ink); background: transparent; padding: 8px 0; margin: 4px 0 0; border-radius: 0; font-size: .9rem; }
 .wk > .textbtn { margin-top: 8px; color: var(--bad); }
 .ridemap { margin: 0 -20px; background: var(--panel); position: relative; }
 .ridemap svg { display: block; width: 100%; height: auto; }
 .ridemap small { position: absolute; left: 20px; bottom: 6px; font-size: .56rem; letter-spacing: .08em; color: var(--muted); text-transform: uppercase; }
-.ridevideo { margin: 0 -20px; background: #000; aspect-ratio: 16 / 9; }
-.ridevideo iframe { width: 100%; height: 100%; border: 0; display: block; pointer-events: none; }
-@media (min-width: 620px) { .ridemap, .ridevideo { margin: 0; } }
+
 
 /* Titelfoto: Hochformat vollständig zeigen */
 .herophoto { aspect-ratio: 2 / 3; object-fit: cover; object-position: center; }
 @media (min-width: 900px) { .herophoto { aspect-ratio: 4 / 5; object-position: center 35%; } }
+
+/* Fahransicht in der Verfolgerperspektive */
+.world { position: relative; margin: 0 -20px; aspect-ratio: 16 / 10; background: #cdd6dc; overflow: hidden; }
+.world canvas { position: absolute; inset: 0; width: 100%; height: 100%; display: block; }
+.whud { position: absolute; top: 10px; left: 10px; right: 10px; display: flex; justify-content: space-between; gap: 10px; pointer-events: none; }
+.wgrade, .wdist { background: rgba(17,17,16,0.72); color: #f3f1ec; padding: 7px 11px 6px; }
+.wgrade { position: relative; padding-left: 16px; }
+.wgrade i { position: absolute; left: 0; top: 0; bottom: 0; width: 5px; background: #3f6b4f; }
+.wgrade b, .wdist b { display: block; font-size: 1.35rem; font-weight: 500; letter-spacing: -.02em; line-height: 1.1; font-variant-numeric: tabular-nums; }
+.wgrade small, .wdist small { display: block; font-size: .52rem; text-transform: uppercase; letter-spacing: .1em; color: #c9c4b9; }
+.wdist { text-align: right; }
+.wmetrics { display: none; }
+.wfull { position: absolute; right: 10px; bottom: 10px; width: auto; margin: 0; padding: 8px 12px; font-size: .56rem; background: rgba(17,17,16,0.72); color: #f3f1ec; border: 0; }
+.minimap { position: absolute; left: 10px; bottom: 10px; width: 120px; pointer-events: none; }
+.minimap svg { display: block; width: 100%; height: auto; }
+.world.full { position: fixed; inset: 0; margin: 0; z-index: 30; aspect-ratio: auto; }
+.world.full .wmetrics { display: grid; grid-template-columns: repeat(4, 1fr); position: absolute; left: 10px; right: 10px; bottom: 54px; gap: 1px; pointer-events: none; }
+.world.full .wmetrics div { background: rgba(17,17,16,0.72); color: #f3f1ec; padding: 6px 10px; }
+.world.full .wmetrics b { display: block; font-size: 1.6rem; font-weight: 500; font-variant-numeric: tabular-nums; line-height: 1.1; }
+.world.full .wmetrics small { font-size: .5rem; text-transform: uppercase; letter-spacing: .1em; color: #c9c4b9; }
+.world.full .minimap { bottom: 120px; }
+body.worldfull { overflow: hidden; }
+@media (min-width: 620px) { .world { margin: 0; } }
+
+/* Logo in der Menüleiste */
+.rail a.raillogo { display: flex; flex-direction: column; align-items: center; gap: 6px; }
+.rail .logo { width: 34px; height: auto; display: block; }
+.rail a.raillogo span { display: none; }
+@media (min-width: 900px) {
+  .rail a.raillogo { flex-direction: row; gap: 12px; }
+  .rail a.raillogo span { display: inline; font-size: .78rem; font-weight: 600; letter-spacing: .22em; text-transform: uppercase; }
+}
+.brandname { display: inline-flex; align-items: center; gap: 10px; }
+.brandname .logo.small { width: 26px; height: auto; }
+.brandname { white-space: nowrap; }
+.brandname .logo.small { display: block; flex: none; }
+/* Vollbild: Messwerte kompakt, ohne den Fahrer zu verdecken */
+.world.full .wmetrics { left: 10px; right: auto; bottom: 10px; grid-template-columns: repeat(4, auto); }
+.world.full .wmetrics div { padding: 5px 10px; min-width: 64px; }
+.world.full .wmetrics b { font-size: 1.3rem; }
+.world.full .minimap { left: auto; right: 10px; top: 78px; bottom: auto; }
+@media (orientation: portrait) {
+  .world.full .wmetrics { top: 78px; bottom: auto; }
+  .world.full .minimap { top: 140px; }
+}

@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { parseIndoorBikeData, parseCyclingPower, parseHeartRate, cmdTargetPower, cmdSimulation } from '../js/ftms.js';
-import { WORKOUTS, ROUTES, workoutDuration, targetAt, gradeAt, elevationAt, routeLength, routeClimb, stepSpeed, summarize, toTcx, PLAN, planItem, prepFor, powerZone, hrZone, expectedHrZone, cadenceRange, powerRange, judge, routeFromTrack, youtubeId, videoRate } from '../js/workouts.js';
+import { WORKOUTS, ROUTES, workoutDuration, targetAt, gradeAt, elevationAt, routeLength, routeClimb, stepSpeed, summarize, toTcx, PLAN, planItem, prepFor, powerZone, hrZone, expectedHrZone, cadenceRange, powerRange, judge, routeFromTrack } from '../js/workouts.js';
 
 const dv = (bytes) => new DataView(Uint8Array.from(bytes).buffer);
 
@@ -223,19 +223,6 @@ test('GPX: Strecke aus Trackpunkten', () => {
   assert.equal(routeClimb(flat), 0);
 });
 
-test('Video: YouTube-Kennung und Abspieltempo', () => {
-  assert.equal(youtubeId('https://www.youtube.com/watch?v=abcdefghijk'), 'abcdefghijk');
-  assert.equal(youtubeId('https://youtu.be/abcdefghijk?t=30'), 'abcdefghijk');
-  assert.equal(youtubeId('https://www.youtube.com/watch?list=x&v=ABC_def-123'), 'ABC_def-123');
-  assert.equal(youtubeId('https://www.youtube.com/shorts/abcdefghijk'), 'abcdefghijk');
-  assert.equal(youtubeId('https://example.com/video.mp4'), null);
-  assert.equal(videoRate(0), 0);
-  assert.equal(videoRate(25), 1);
-  assert.equal(videoRate(12), 0.5);
-  assert.equal(videoRate(9), 0.25);
-  assert.equal(videoRate(80), 2);
-});
-
 test('FIT-Export: Prüfsumme, Kopf und Aufbau', async () => {
   const { toFit, fitCrc } = await import('../js/fit.js');
   assert.equal(fitCrc(new TextEncoder().encode('123456789')), 0xbb3d);     // bekannter Prüfwert (CRC-16/ARC)
@@ -248,4 +235,35 @@ test('FIT-Export: Prüfsumme, Kopf und Aufbau', async () => {
   assert.equal(dv.getUint16(12, true), fitCrc(f.subarray(0, 12)));
   assert.equal(fitCrc(f), 0);                                               // Prüfsumme über die ganze Datei geht auf
   assert.equal(toFit(Date.now(), []).length > 30, true);
+});
+
+test('3D-Strecke: Kurven aus GPS-Track und nachgebildete Kehren', async () => {
+  const { courseCurvature, buildCourse, SEG, PRE, EXAG, MAX_K } = await import('../js/world.js');
+  // Kreis mit 200 m Radius im Uhrzeigersinn (Norden → Osten → Süden) = Rechtskurve
+  const R = 200, pts = Array.from({ length: 721 }, (_, i) => {
+    const a = (i / 720) * 2 * Math.PI * 0.9;
+    return { lat: 47 + (R * Math.cos(a)) / 111195, lon: 8 + (R * Math.sin(a)) / (111195 * Math.cos((47 * Math.PI) / 180)), ele: 500 };
+  });
+  const circle = routeFromTrack('Kreis', pts);
+  const { k } = courseCurvature(circle);
+  const mid = [...k.slice(10, -10)].sort((a, b) => a - b)[Math.floor((k.length - 20) / 2)];
+  assert.ok(mid > 0, 'Rechtskurve positiv');
+  assert.ok(Math.abs(mid - 1 / R) < 0.2 / R, `Krümmung ${mid} statt ${1 / R}`);
+
+  const sc = ROUTES.find((r) => r.id === 'sacalobra');
+  const { hairpins } = courseCurvature(sc);
+  assert.equal(hairpins.length, 26);
+  const course = buildCourse(sc);
+  assert.equal(course.theme, 'mallorca');
+  assert.equal(course.segs[PRE].z, 0);
+  const j = PRE + 400;
+  assert.ok(Math.abs(course.segs[j].y - elevationAt(sc, 400 * SEG) * EXAG) < 1e-6);
+  assert.ok(course.segs.every((s) => Math.abs(s.c) <= MAX_K * SEG * SEG + 1e-9));
+  const sprites = course.segs.flatMap((s) => s.sprites);
+  assert.equal(sprites.filter((x) => x.t === 'km').length, 10);
+  assert.equal(sprites.filter((x) => x.t === 'chevron').length, 26);
+  assert.equal(sprites.filter((x) => x.t === 'banner').length, 2);
+  assert.ok(sprites.filter((x) => !['km', 'chevron', 'banner'].includes(x.t)).every((x) => Math.abs(x.x) > course.half + 2));
+  const alpe = buildCourse(ROUTES.find((r) => r.id === 'alpedhuez')).segs.flatMap((s) => s.sprites).filter((x) => x.t === 'chevron');
+  assert.deepEqual([alpe[0].num, alpe.at(-1).num], [21, 1]);
 });

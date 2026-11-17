@@ -1,14 +1,21 @@
 // Trainingsbereich: Trainer verbinden, Workouts (ERG) und Strecken (Steigungssimulation) fahren.
 
-import { Trainer, bluetoothAvailable } from './trainer.js?v=16';
-import { WORKOUTS, ROUTES, workoutDuration, routeLength, routeClimb, routeFromTrack, youtubeId, videoRate, targetAt, gradeAt, elevationAt, stepSpeed, summarize, toTcx, PLAN, planItem, prepFor,
-  POWER_ZONES, HR_ZONES, powerZone, hrZone, expectedHrZone, cadenceRange, powerRange, judge } from './workouts.js?v=16';
+import { Trainer, bluetoothAvailable } from './trainer.js?v=17';
+import { WORKOUTS, ROUTES, workoutDuration, routeLength, routeClimb, routeFromTrack, targetAt, gradeAt, elevationAt, stepSpeed, summarize, toTcx, PLAN, planItem, prepFor,
+  POWER_ZONES, HR_ZONES, powerZone, hrZone, expectedHrZone, cadenceRange, powerRange, judge } from './workouts.js?v=17';
 
 const PREFS_KEY = 'rollentrainer.training.v1', RIDES_KEY = 'rollentrainer.rides.v1', ROUTES_KEY = 'rollentrainer.routes.v1';
 const SVGNS = 'http://www.w3.org/2000/svg';
 const INK = '#111110', MUTED = '#77736b', LINE = '#d6d1c6', ACCENT = '#a8553a';
 const FONT = 'Helvetica Neue, Helvetica, Arial, sans-serif';
 
+/** Schriftzug mit Berg-Logo für die Kopfzeile. */
+const brandName = () => {
+  const b = document.createElement('span');
+  b.className = 'brandname';
+  b.innerHTML = '<svg class="logo small" viewBox="0 0 64 34" aria-hidden="true"><path d="M2 32 25 5l9 10.5L41 8l21 24H51.5L41 19.6l-6.6 7.6L25 16.2 13 32z" fill="currentColor"/></svg>Ride More';
+  return b;
+};
 const el = (tag, cls, text) => {
   const e = document.createElement(tag);
   if (cls) e.className = cls;
@@ -32,7 +39,7 @@ const store = {
 };
 
 export function initTraining(root) {
-  const prefs = { ftp: 200, weight: 75, maxHr: 185, tab: 'workouts', planDone: {}, videos: {}, ...store.get(PREFS_KEY, {}) };
+  const prefs = { ftp: 200, weight: 75, maxHr: 185, tab: 'workouts', planDone: {}, ...store.get(PREFS_KEY, {}) };
   const savePrefs = () => store.set(PREFS_KEY, prefs);
   const ftp = () => Math.min(500, Math.max(80, Number(prefs.ftp) || 200));
   const maxHr = () => Math.min(230, Math.max(120, Number(prefs.maxHr) || 185));
@@ -55,7 +62,7 @@ export function initTraining(root) {
 
   const header = (tag) => {
     const h = el('header', 'brand');
-    h.append(el('span', 'brandname', 'Antritt'), el('span', 'brandtag', tag));
+    h.append(brandName(), el('span', 'brandtag', tag));
     return h;
   };
 
@@ -182,7 +189,7 @@ export function initTraining(root) {
         allBtn.style.flexBasis = '100%';
       }
       if (!bluetoothAvailable()) {
-        hint.textContent = 'Dieser Browser kann keine Bluetooth-Geräte ansprechen. Das geht mit Chrome oder Edge auf Android, Windows und Mac. Auf iPhone und iPad funktioniert es weder in Safari noch in Chrome – dort braucht es die Antritt-App oder einen Spezial-Browser mit Web-Bluetooth. Zum Ausprobieren gibt es den Demo-Trainer.';
+        hint.textContent = 'Dieser Browser kann keine Bluetooth-Geräte ansprechen. Das geht mit Chrome oder Edge auf Android, Windows und Mac. Auf iPhone und iPad funktioniert es weder in Safari noch in Chrome – dort braucht es die Ride More-App oder einen Spezial-Browser mit Web-Bluetooth. Zum Ausprobieren gibt es den Demo-Trainer.';
       }
       for (const s of root.querySelectorAll('.wkstart')) s.disabled = !trainer.connected;
       startHint.hidden = trainer.connected;
@@ -337,17 +344,6 @@ export function initTraining(root) {
         if (def.place) row.append(el('p', 'wkplace', def.place));
         row.append(el('p', 'wktext', def.text));
         if (def.real) row.append(el('p', 'prepnote', 'Länge und Höhenmeter entsprechen den üblichen Angaben; der Steigungsverlauf ist angenähert.'));
-        if (kind === 'route') {
-          // Video zur Strecke: eigener YouTube-Link, läuft während der Fahrt mit
-          const d = el('details', 'prep'), inp = el('input'), state = el('p', 'prepnote');
-          const showState = () => { state.textContent = youtubeId(prefs.videos[def.id]) ? 'Video hinterlegt – es läuft während der Fahrt mit, schneller oder langsamer je nach deinem Tempo.' : 'Füge den Link zu einem YouTube-Video der Strecke ein. Das Video wird von YouTube geladen.'; };
-          d.append(el('summary', null, 'Video zur Strecke'));
-          inp.type = 'url'; inp.placeholder = 'https://www.youtube.com/watch?v=…'; inp.value = prefs.videos[def.id] ?? ''; inp.className = 'urlinput';
-          inp.oninput = () => { prefs.videos[def.id] = inp.value.trim(); savePrefs(); showState(); };
-          showState();
-          d.append(inp, state);
-          row.append(d);
-        }
         row.append(prepBlock(kind, def));
         if (def.custom) {
           const del = el('button', 'textbtn', 'Strecke löschen');
@@ -466,47 +462,32 @@ export function initTraining(root) {
       }
     }
 
-    // Karte: Linie der Strecke mit deiner Position (nur bei GPX-Strecken vorhanden)
-    let mapDot = null, mapPos = null;
+    // Strecken: Fahransicht in der Verfolgerperspektive, bei GPX-Strecken mit kleiner Übersichtskarte
+    let mapDot = null, mapPos = null, world = null;
     const extras = [];
+    if (kind === 'route') {
+      const { createWorld } = await import('./world.js?v=17');
+      world = createWorld(def);
+      ride.world = world;
+      extras.push(world.el);
+    }
     if (def.track?.length > 1) {
-      const W = 340, H = 170, pad = 12, lat0 = def.track[0][0], k = Math.cos((lat0 * Math.PI) / 180);
+      const W = 160, H = 100, pad = 8, lat0 = def.track[0][0], k = Math.cos((lat0 * Math.PI) / 180);
       const xs = def.track.map((p) => p[1] * k), ys = def.track.map((p) => p[0]);
       const x0 = Math.min(...xs), x1 = Math.max(...xs), y0 = Math.min(...ys), y1 = Math.max(...ys);
       const sc = Math.min((W - 2 * pad) / (x1 - x0 || 1e-9), (H - 2 * pad) / (y1 - y0 || 1e-9));
       const px = (i) => [pad + (xs[i] - x0) * sc + (W - 2 * pad - (x1 - x0) * sc) / 2, H - pad - (ys[i] - y0) * sc - (H - 2 * pad - (y1 - y0) * sc) / 2];
-      const map = el('div', 'ridemap');
+      const map = el('div', 'minimap');
       const svg = svgEl('svg', { viewBox: `0 0 ${W} ${H}`, role: 'img', 'aria-label': `Karte der Strecke ${def.name} mit deiner Position` }, map);
-      svgEl('rect', { width: W, height: H, fill: '#e4dfd5' }, svg);
-      svgEl('polyline', { points: def.track.map((_, i) => px(i).map((v) => v.toFixed(1)).join(',')).join(' '), fill: 'none', stroke: INK, 'stroke-width': 2, 'stroke-linejoin': 'round', 'stroke-linecap': 'round' }, svg);
+      svgEl('rect', { width: W, height: H, fill: 'rgba(17,17,16,0.55)' }, svg);
+      svgEl('polyline', { points: def.track.map((_, i) => px(i).map((v) => v.toFixed(1)).join(',')).join(' '), fill: 'none', stroke: '#f3f1ec', 'stroke-width': 1.6, 'stroke-linejoin': 'round', 'stroke-linecap': 'round' }, svg);
       const [sx, sy] = px(0), [ex, ey] = px(def.track.length - 1);
-      svgEl('circle', { cx: sx, cy: sy, r: 3.5, fill: '#f3f1ec', stroke: INK, 'stroke-width': 1.5 }, svg);
-      svgEl('rect', { x: ex - 3.5, y: ey - 3.5, width: 7, height: 7, fill: INK }, svg);
-      mapDot = svgEl('circle', { r: 5, fill: ACCENT, stroke: '#f3f1ec', 'stroke-width': 2 }, svg);
+      svgEl('circle', { cx: sx, cy: sy, r: 2.5, fill: 'none', stroke: '#f3f1ec', 'stroke-width': 1.2 }, svg);
+      svgEl('rect', { x: ex - 2.5, y: ey - 2.5, width: 5, height: 5, fill: '#f3f1ec' }, svg);
+      mapDot = svgEl('circle', { r: 4, fill: '#e2b23a', stroke: INK, 'stroke-width': 1.2 }, svg);
       mapPos = (frac) => { const [x, y] = px(Math.round(Math.max(0, Math.min(1, frac)) * (def.track.length - 1))); mapDot.setAttribute('cx', x); mapDot.setAttribute('cy', y); };
-      map.append(el('small', null, '○ Start · ■ Ziel · ● du'));
-      extras.push(map);
+      (world ? world.el : extras).append(map);
     }
-    // Video: YouTube-Link der Strecke, Abspieltempo folgt der Fahrgeschwindigkeit
-    let videoCmd = null, lastRate = null;
-    const vid = kind === 'route' ? youtubeId(prefs.videos[def.id]) : null;
-    if (vid) {
-      const box = el('div', 'ridevideo'), frame = el('iframe');
-      frame.src = `https://www.youtube-nocookie.com/embed/${vid}?enablejsapi=1&autoplay=1&mute=1&controls=0&playsinline=1&rel=0`;
-      frame.allow = 'autoplay; encrypted-media';
-      frame.title = `Video zur Strecke ${def.name}`;
-      box.append(frame);
-      extras.unshift(box);
-      videoCmd = (func, args = []) => frame.contentWindow?.postMessage(JSON.stringify({ event: 'command', func, args }), '*');
-    }
-    const syncVideo = () => {
-      if (!videoCmd) return;
-      const rate = ride.paused ? 0 : videoRate(ride.v * 3.6);
-      if (rate === lastRate) return;
-      lastRate = rate;
-      if (rate === 0) videoCmd('pauseVideo'); else { videoCmd('setPlaybackRate', [rate]); videoCmd('playVideo'); }
-    };
-
     const chart = el('div', 'ridechart');
     const pf = profile(kind, def, { H: 130, big: true });
     const trace = svgEl('polyline', { fill: 'none', stroke: ACCENT, 'stroke-width': 1.6, 'stroke-linejoin': 'round' }, pf.svg);
@@ -560,7 +541,7 @@ export function initTraining(root) {
         time.textContent = clock(ride.t);
         updateGauges(null);
         mapPos?.(ride.dist / pf.total);
-        syncVideo();
+        world?.update({ dist: ride.dist, v: ride.v, grade: ride.grade, cad: trainer.data.cadence, power: power3s(), hr: trainer.data.hr, paused: ride.paused });
         vTarget.textContent = `${ride.grade > 0 ? '+' : ''}${de(ride.grade, 1)} %`;
         segInfo.textContent = ride.paused ? 'Pausiert' : `noch ${de((pf.total - ride.dist) / 1000, 1)} km · ${de(elevationAt(def, ride.dist))} m ü. M.`;
         cursor.setAttribute('x1', pf.x(ride.dist)); cursor.setAttribute('x2', pf.x(ride.dist));
@@ -599,6 +580,7 @@ export function initTraining(root) {
   function finishRide() {
     if (!ride) return;
     clearInterval(ride.timer);
+    ride.world?.destroy();
     trainer.release();
     wakeLock?.release().catch(() => {});
     const done = { date: ride.date, name: ride.name, kind: ride.kind, ftp: ftp(), stats: summarize(ride.samples, ftp()), samples: ride.samples };
@@ -706,12 +688,12 @@ export function initTraining(root) {
       const fitBtn = el('button', 'primary', 'Fahrt exportieren (FIT)');
       fitBtn.type = 'button';
       fitBtn.onclick = async () => {
-        const { toFit } = await import('./fit.js?v=16');
-        deliver(new File([toFit(r.date, r.samples)], `antritt-${stamp}.fit`, { type: 'application/octet-stream' }));
+        const { toFit } = await import('./fit.js?v=17');
+        deliver(new File([toFit(r.date, r.samples)], `ridemore-${stamp}.fit`, { type: 'application/octet-stream' }));
       };
       const tcxBtn = el('button', 'textbtn', 'Stattdessen als TCX-Datei');
       tcxBtn.type = 'button';
-      tcxBtn.onclick = () => deliver(new File([toTcx(r.date, r.samples)], `antritt-${stamp}.tcx`, { type: 'application/octet-stream' }));
+      tcxBtn.onclick = () => deliver(new File([toTcx(r.date, r.samples)], `ridemore-${stamp}.tcx`, { type: 'application/octet-stream' }));
       const how = el('details', 'prep');
       how.append(el('summary', null, 'So kommt die Fahrt zu Strava & Co.'));
       for (const [k, v] of [

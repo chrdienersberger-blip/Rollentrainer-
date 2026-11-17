@@ -1,4 +1,4 @@
-# Antritt als iPhone-App
+# Ride More als iPhone-App
 
 Die Website läuft hier in einer App-Hülle. Dadurch darf sie auf dem iPhone direkt
 per Bluetooth mit dem Smart Trainer und dem Herzfrequenz-Sensor sprechen – ohne
@@ -34,7 +34,7 @@ Mit dem Apple-Entwicklerprogramm (99 US-Dollar pro Jahr) hält sie ein Jahr.
 4. **In Xcode anmelden:** links auf **App** klicken, dann den Reiter
    **Signing & Capabilities**. Bei **Team** deine Apple-ID wählen
    (*Add an Account…*, falls sie fehlt). Meldet Xcode, dass die Kennung vergeben ist,
-   den **Bundle Identifier** ändern, z. B. in `app.antritt.deinname`.
+   den **Bundle Identifier** ändern, z. B. in `app.ridemore.deinname`.
 5. **Aufspielen:** oben in der Leiste dein iPhone als Ziel wählen und auf ▶ drücken.
 6. **App erlauben:** Beim ersten Start am iPhone unter
    *Einstellungen → Allgemein → VPN & Geräteverwaltung* deiner Apple-ID vertrauen.

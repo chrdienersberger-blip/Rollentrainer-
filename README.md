@@ -1,4 +1,4 @@
-# Antritt – Training und Bike-Fitting auf dem Rollentrainer
+# Ride More – Training und Bike-Fitting auf dem Rollentrainer
 
 Web-App mit Startseite und drei Bereichen, erreichbar über die Menüleiste links:
 
@@ -42,6 +42,7 @@ Danach ist die App unter `https://<benutzer>.github.io/<repo>/` erreichbar.
 | `js/training.js` | Trainingsbereich: Übersicht, Fahrt, Auswertung |
 | `js/trainer.js` | Bluetooth-Verbindung zum Trainer, Demo-Trainer |
 | `js/ftms.js` | Trainer-Protokoll (FTMS, Leistungsmesser, Puls) |
+| `js/world.js` | 3D-Fahransicht der Strecken |
 | `js/fit.js` | Export einer Fahrt als FIT-Datei |
 | `js/workouts.js` | Workouts, Strecken, Fahrphysik, Kennzahlen, TCX |
 | `js/market.js` | Marketplace-Verzeichnis |
@@ -73,8 +74,10 @@ Richtwerte und ersetzen kein professionelles Bikefitting.
   angenähert. Es sind keine vermessenen GPS-Tracks.
 - **Eigene Strecken:** Jede GPX-Datei lässt sich laden; daraus entstehen Höhenprofil
   und Kartenlinie.
-- **Video:** Pro Strecke kann ein YouTube-Link hinterlegt werden. Das Video läuft
-  während der Fahrt mit, das Abspieltempo folgt der Fahrgeschwindigkeit.
+- **Fahransicht:** Strecken werden als gezeichnete 3D-Straße aus der Verfolgerperspektive
+  gezeigt (Pseudo-3D wie bei klassischen Rennspielen): Höhenprofil, Kurven, Kehren,
+  Kilometersteine, Hang und Tal. Bei GPX-Strecken stammen die Kurven aus dem Track,
+  sonst sind sie nachgebildet. Es ist kein gefilmtes Video.
 
 ## Titelfoto
 

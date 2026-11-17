@@ -12,7 +12,7 @@ export const WORKOUTS = [
     segs: [seg(6, 45, 60), seg(6, 62, 62, 80), seg(2, 50), seg(6, 62, 62, 90), seg(2, 50), seg(6, 62, 62, 100), seg(2, 50), seg(4, 55, 45)] },
   { id: 'recovery', name: 'Lockere Runde', focus: 'Regeneration', text: 'Gleichmäßig locker, die Beine drehen sich frei.',
     segs: [seg(5, 45, 55), seg(20, 55), seg(5, 55, 45)] },
-  { id: 'endurance', name: 'Grundlage', focus: 'Ausdauer', text: 'Ruhiges Dauertempo mit drei kurzen Antritten.',
+  { id: 'endurance', name: 'Grundlage', focus: 'Ausdauer', text: 'Ruhiges Dauertempo mit drei kurzen Ride Moreen.',
     segs: [seg(8, 50, 68), ...rep(3, seg(11, 68), seg(1, 95)), seg(6, 65, 45)] },
   { id: 'sweetspot', name: 'Sweet Spot 3 × 10', focus: 'Schwelle', text: 'Drei Blöcke knapp unter der Schwelle – viel Wirkung, gut verträglich.',
     segs: [seg(10, 50, 75), ...rep(3, seg(10, 90), seg(4, 55)), seg(6, 60, 45)] },
@@ -261,16 +261,4 @@ export function routeFromTrack(name, pts) {
     points: at.map((p, i) => [Math.round(p.d) / 1000, Math.round(smooth[i] * 10) / 10]),
     track: at.map((p) => [Math.round(p.lat * 1e5) / 1e5, Math.round(p.lon * 1e5) / 1e5]),
   };
-}
-
-// ---------- Video zur Strecke ----------
-/** Kennung eines YouTube-Videos aus den üblichen Link-Formen, sonst null. */
-export function youtubeId(url) {
-  const m = String(url ?? '').match(/(?:youtu\.be\/|youtube(?:-nocookie)?\.com\/(?:watch\?(?:.*&)?v=|embed\/|shorts\/|live\/))([\w-]{11})/);
-  return m ? m[1] : null;
-}
-/** Abspieltempo passend zur Fahrgeschwindigkeit: 25 km/h entsprechen normalem Tempo. 0 = anhalten. */
-export function videoRate(kmh) {
-  if (kmh < 2) return 0;
-  return Math.max(0.25, Math.min(2, Math.round((kmh / 25) * 4) / 4));
 }

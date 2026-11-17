@@ -37,7 +37,7 @@ const GROUPS = [
   ] },
 ];
 
-import { BRANDS, CATEGORIES } from './bikes.js?v=16';
+import { BRANDS, CATEGORIES } from './bikes.js?v=17';
 
 const STARTER_KEY = 'rollentrainer.starter.v1';
 const DOMAIN = { Canyon: 'canyon.com', 'Cervélo': 'cervelo.com', Specialized: 'specialized.com', Trek: 'trekbikes.com', Giant: 'giant-bicycles.com',
@@ -77,6 +77,13 @@ const BUDGETS = [
   ['high', 'über 3.000 €', 'Ab hier zahlst du vor allem für weniger Gewicht, Aerodynamik und elektronische Schaltung. Schneller macht dich am Anfang vor allem das Training.'],
 ];
 
+/** Schriftzug mit Berg-Logo für die Kopfzeile. */
+const brandName = () => {
+  const b = document.createElement('span');
+  b.className = 'brandname';
+  b.innerHTML = '<svg class="logo small" viewBox="0 0 64 34" aria-hidden="true"><path d="M2 32 25 5l9 10.5L41 8l21 24H51.5L41 19.6l-6.6 7.6L25 16.2 13 32z" fill="currentColor"/></svg>Ride More';
+  return b;
+};
 const el = (tag, cls, text) => {
   const e = document.createElement(tag);
   if (cls) e.className = cls;
@@ -159,7 +166,7 @@ function checklist(st) {
 export function renderMarket(root) {
   const st = load();
   const head = el('header', 'brand');
-  head.append(el('span', 'brandname', 'Antritt'), el('span', 'brandtag', 'Marketplace'));
+  head.append(brandName(), el('span', 'brandtag', 'Marketplace'));
   const intro = el('div', 'pagehead');
   intro.append(el('h1', null, 'Rad und Ausrüstung'),
     el('p', null, 'Was du für den Einstieg brauchst, welches Rad zu dir passt und wo du es findest.'));
@@ -184,5 +191,5 @@ export function renderMarket(root) {
     sec.append(h, grid);
     root.append(sec);
   }
-  root.append(el('p', 'note', 'Antritt ist mit keinem der Anbieter verbunden und erhält keine Provision. Verlinkt ist jeweils die Startseite; Preise und tagesaktuelle Angebote werden hier nicht abgerufen. Die Budget-Hinweise sind grobe Orientierung.'));
+  root.append(el('p', 'note', 'Ride More ist mit keinem der Anbieter verbunden und erhält keine Provision. Verlinkt ist jeweils die Startseite; Preise und tagesaktuelle Angebote werden hier nicht abgerufen. Die Budget-Hinweise sind grobe Orientierung.'));
 }
