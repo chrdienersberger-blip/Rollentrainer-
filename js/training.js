@@ -1,8 +1,8 @@
 // Trainingsbereich: Trainer verbinden, Workouts (ERG) und Strecken (Steigungssimulation) fahren.
 
-import { Trainer, bluetoothAvailable } from './trainer.js?v=18';
+import { Trainer, bluetoothAvailable } from './trainer.js?v=19';
 import { WORKOUTS, ROUTES, workoutDuration, routeLength, routeClimb, routeFromTrack, targetAt, gradeAt, elevationAt, stepSpeed, summarize, toTcx, PLAN, planItem, prepFor,
-  POWER_ZONES, HR_ZONES, powerZone, hrZone, expectedHrZone, cadenceRange, powerRange, judge } from './workouts.js?v=18';
+  POWER_ZONES, HR_ZONES, powerZone, hrZone, expectedHrZone, cadenceRange, powerRange, judge } from './workouts.js?v=19';
 
 const PREFS_KEY = 'rollentrainer.training.v1', RIDES_KEY = 'rollentrainer.rides.v1', ROUTES_KEY = 'rollentrainer.routes.v1';
 const SVGNS = 'http://www.w3.org/2000/svg';
@@ -116,8 +116,15 @@ export function initTraining(root) {
       el('p', null, 'Verbinde deinen Smart Trainer und fahre strukturierte Workouts oder eine Strecke mit simulierter Steigung.'));
     root.append(head);
 
+    // Sprungleiste
+    const jb = el('nav', 'jumpbar');
+    jb.setAttribute('aria-label', 'Auf dieser Seite');
+    for (const [label, id] of [['Trainer', 'tr-trainer'], ['Werte', 'tr-werte'], ['Plan', 'plan'], ['Einheiten', 'tr-einheiten'], ...(store.get(RIDES_KEY, []).length ? [['Fahrten', 'rideHistory']] : [])]) { const b = el('button', null, label); b.type = 'button'; b.dataset.jump = id; jb.append(b); }
+    root.append(jb);
+
     // Trainer
     const dev = el('section', 'card');
+    dev.id = 'tr-trainer';
     const step = el('div', 'step');
     step.append(el('span', null, '1'), el('h2', null, 'Dein Trainer'));
     const status = el('div', 'devstatus'), btns = el('div', 'row wrap'), hint = el('p', 'hint');
@@ -197,6 +204,7 @@ export function initTraining(root) {
 
     // Werte
     const you = el('section', 'card');
+    you.id = 'tr-werte';
     const step2 = el('div', 'step');
     step2.append(el('span', null, '2'), el('h2', null, 'Deine Werte'));
     const grid = el('div', 'grid2');
@@ -272,6 +280,7 @@ export function initTraining(root) {
 
     // Auswahl
     const pick = el('section', 'card');
+    pick.id = 'tr-einheiten';
     const step3 = el('div', 'step');
     step3.append(el('span', null, '4'), el('h2', null, 'Alle Einheiten'));
     const tabs = el('div', 'seg'), list = el('div', 'wklist'), startHint = el('p', 'hint', 'Verbinde zuerst deinen Trainer oder wähle den Demo-Trainer.');
@@ -466,7 +475,7 @@ export function initTraining(root) {
     let mapDot = null, mapPos = null, world = null;
     const extras = [];
     if (kind === 'route') {
-      const { createWorld } = await import('./world.js?v=18');
+      const { createWorld } = await import('./world.js?v=19');
       world = createWorld(def);
       ride.world = world;
       extras.push(world.el);
@@ -688,7 +697,7 @@ export function initTraining(root) {
       const fitBtn = el('button', 'primary', 'Fahrt exportieren (FIT)');
       fitBtn.type = 'button';
       fitBtn.onclick = async () => {
-        const { toFit } = await import('./fit.js?v=18');
+        const { toFit } = await import('./fit.js?v=19');
         deliver(new File([toFit(r.date, r.samples)], `ridemore-${stamp}.fit`, { type: 'application/octet-stream' }));
       };
       const tcxBtn = el('button', 'textbtn', 'Stattdessen als TCX-Datei');

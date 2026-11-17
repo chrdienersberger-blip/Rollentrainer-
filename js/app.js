@@ -1,10 +1,10 @@
-import { extractSide, coreVisibility, frameAngles, analyzeSession, pickSide, readiness, inFrame, READY_LABELS } from './analysis.js?v=18';
-import { evaluate, stability, saddleFromInseam, statusOf, rangeOf, STYLES } from './evaluate.js?v=18';
-import { BRANDS, CATEGORIES, findBike } from './bikes.js?v=18';
-import { syntheticSession } from './demo.js?v=18';
-import { putClip, getClip, pruneClips } from './clips.js?v=18';
-import { REGIONS, clipStatuses, share, frameAt, drawOutline, drawSkeleton as drawJoints } from './overlay.js?v=18';
-import { initHero } from './hero.js?v=18';
+import { extractSide, coreVisibility, frameAngles, analyzeSession, pickSide, readiness, inFrame, READY_LABELS } from './analysis.js?v=19';
+import { evaluate, stability, saddleFromInseam, statusOf, rangeOf, STYLES } from './evaluate.js?v=19';
+import { BRANDS, CATEGORIES, findBike } from './bikes.js?v=19';
+import { syntheticSession } from './demo.js?v=19';
+import { putClip, getClip, pruneClips } from './clips.js?v=19';
+import { REGIONS, clipStatuses, share, frameAt, drawOutline, drawSkeleton as drawJoints } from './overlay.js?v=19';
+import { initHero } from './hero.js?v=19';
 
 const MP_VERSION = '0.10.14';
 const MP_BASE = `https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@${MP_VERSION}`;
@@ -24,7 +24,8 @@ const state = {
   samples: [], votes: { left: 0, right: 0 },
   snapshot: null, snapshotKnee: 0, raf: 0, lastVideoTime: -1, wakeLock: null,
 };
-const prefs = { bike: 'other|allround', style: 'sport', height: 175, inseam: '', duration: 45 };
+const prefs = { bike: 'other|allround', style: 'sport', height: 175, inseam: '', duration: 45, startMode: 'auto', timerSec: 15, sound: true };
+const VOICE_WORDS = /\b(start|starten|los|go)\b/i;   // Startwort für den Sprachbefehl
 let landmarker = null, landmarkerPromise = null;
 
 // ---------- Hilfen ----------
@@ -57,12 +58,56 @@ function banner(text, cls = '') {
   $('banner').hidden = !text;
 }
 function say(text) {
+  if (!prefs.sound) return;
   try {
     const u = new SpeechSynthesisUtterance(text);
     u.lang = 'de-DE';
+    state.speaking = true;
+    u.onend = u.onerror = () => { state.speaking = false; state.speechEnd = performance.now(); };
     speechSynthesis.cancel();
     speechSynthesis.speak(u);
   } catch { /* Sprachausgabe ist optional */ }
+}
+function setSound(on) {
+  prefs.sound = on;
+  store.set(SETTINGS_KEY, prefs);
+  if (!on) { try { speechSynthesis.cancel(); } catch { /* optional */ } state.speaking = false; }
+  $('soundBtn').textContent = on ? 'Ton aus' : 'Ton an';
+  renderModeSettings();
+}
+
+// ---------- Sprachbefehl ----------
+const Recognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+const voiceAvailable = () => !!Recognition && !globalThis.Capacitor?.isNativePlatform?.();
+function startListening() {
+  if (!voiceAvailable()) return false;
+  stopListening();
+  const rec = new Recognition();
+  rec.lang = 'de-DE'; rec.continuous = true; rec.interimResults = true;
+  rec.onresult = (e) => {
+    // eigene Ansagen nicht als Befehl werten
+    if (state.speaking || performance.now() - (state.speechEnd ?? 0) < 1200) return;
+    for (let i = e.resultIndex; i < e.results.length; i++) {
+      if (VOICE_WORDS.test(e.results[i][0].transcript)) { onVoiceCommand(); break; }
+    }
+  };
+  rec.onerror = (e) => { if (/not-allowed|service-not-allowed/.test(e.error)) { state.voiceDenied = true; state.listening = false; } };
+  rec.onend = () => { if (state.listening) { try { rec.start(); } catch { /* läuft schon */ } } };
+  state.listening = true;
+  state.recognizer = rec;
+  try { rec.start(); } catch { return false; }
+  return true;
+}
+function stopListening() {
+  state.listening = false;
+  try { state.recognizer?.stop(); } catch { /* schon beendet */ }
+  state.recognizer = null;
+}
+function onVoiceCommand() {
+  if (state.phase !== 'waiting') return;
+  const r = state.ready;
+  if (r?.ok) beginCountdown(performance.now());
+  else say(`Noch nicht. ${r?.hint ?? 'Ich sehe dich noch nicht.'}`);
 }
 function settings() {
   const h = Number(prefs.height);
@@ -147,11 +192,37 @@ function initSetup() {
   renderStyleSeg();
   segment($('durSeg'), [30, 45, 60].map((v) => ({ value: v, label: `${v} s` })),
     () => prefs.duration, (v) => { prefs.duration = v; store.set(SETTINGS_KEY, prefs); });
+  if (!['auto', 'voice', 'timer'].includes(prefs.startMode)) prefs.startMode = 'auto';
+  segment($('modeSeg'), [
+    { value: 'auto', label: 'Automatisch', sub: 'wenn alles passt' },
+    { value: 'voice', label: 'Sprachbefehl', sub: '„Start“ sagen' },
+    { value: 'timer', label: 'Timer', sub: 'feste Wartezeit' },
+  ], () => prefs.startMode, (v) => { prefs.startMode = v; store.set(SETTINGS_KEY, prefs); renderModeSettings(); });
+  segment($('timerSeg'), [10, 15, 30].map((v) => ({ value: v, label: `${v} s` })),
+    () => prefs.timerSec, (v) => { prefs.timerSec = v; store.set(SETTINGS_KEY, prefs); renderModeSettings(); });
+  segment($('soundSeg'), [{ value: true, label: 'An' }, { value: false, label: 'Aus' }],
+    () => prefs.sound, (v) => setSound(v));
+  $('soundBtn').textContent = prefs.sound ? 'Ton aus' : 'Ton an';
+  renderModeSettings();
   for (const id of ['height', 'inseam']) {
     $(id).value = prefs[id];
     $(id).oninput = () => { prefs[id] = $(id).value; store.set(SETTINGS_KEY, prefs); };
   }
   renderBikeInfo();
+}
+
+function renderModeSettings() {
+  $('timerBox').hidden = prefs.startMode !== 'timer';
+  const mute = prefs.sound ? '' : ' Der Ton ist aus – Hinweise stehen nur auf dem Bildschirm.';
+  $('modeHint').textContent = {
+    auto: 'Die Messung startet von selbst, sobald du ganz im Bild bist und trittst. Bis dahin sagt dir die App, was noch fehlt.',
+    voice: voiceAvailable()
+      ? 'Die App prüft deine Position. Passt alles, sagst du „Start“ und die Messung beginnt. Die Spracherkennung läuft je nach Browser über Apple oder Google.'
+      : 'Dieser Browser bzw. die iPhone-App kann keine Sprache erkennen. Die Messung startet dann automatisch, sobald alles passt.',
+    timer: `Nach ${prefs.timerSec} Sekunden startet die Messung – unabhängig davon, ob du schon im Bild bist. Die Checkliste zeigt trotzdem, ob alles passt.`,
+  }[prefs.startMode] + mute;
+  // Ton-Auswahl auf dem aktuellen Stand halten
+  for (const b of $('soundSeg').children) b.setAttribute('aria-pressed', String((b.textContent === 'An') === prefs.sound));
 }
 
 // ---------- Pose-Modell ----------
@@ -174,6 +245,8 @@ function loadLandmarker() {
 
 // ---------- Kamera / Video ----------
 function stopMedia() {
+  stopListening();
+  if ($('goBtn')) $('goBtn').hidden = true;
   cancelAnimationFrame(state.raf);
   state.stream?.getTracks().forEach((t) => t.stop());
   state.stream = null;
@@ -216,12 +289,26 @@ function resetRecording() {
 /** Warten, bis die Person vollständig, seitlich und tretend im Bild ist. */
 function beginWaiting() {
   resetRecording();
-  state.phase = 'waiting';
   state.speech = { issue: null, since: 0, spoken: null, at: 0 };
-  say('Stell dich mit dem Rad ins Bild und tritt locker. Die Messung startet automatisch, sobald alles passt.');
+  state.mode2 = prefs.startMode === 'voice' && !voiceAvailable() ? 'auto' : prefs.startMode;
+  if (state.mode2 === 'timer') {
+    state.phase = 'timer';
+    state.phaseEnd = performance.now() + prefs.timerSec * 1000;
+    state.lastCount = null;
+    say(`Die Messung startet in ${prefs.timerSec} Sekunden. Setz dich aufs Rad und tritt locker.`);
+    return;
+  }
+  state.phase = 'waiting';
+  if (state.mode2 === 'voice') {
+    startListening();
+    say('Stell dich mit dem Rad ins Bild und tritt locker. Wenn alles passt, sag das Startwort.');
+  } else {
+    say('Stell dich mit dem Rad ins Bild und tritt locker. Die Messung startet automatisch, sobald alles passt.');
+  }
 }
 
 function beginCountdown(now) {
+  stopListening();
   state.phase = 'countdown';
   state.phaseEnd = now + COUNTDOWN_S * 1000;
   state.badSince = null;
@@ -398,10 +485,17 @@ function cameraPhase(now, fresh) {
     if (r.ok) {
       state.readySince ??= now;
       banner('Position passt', 'okb');
-      hint('Position passt – gleich geht’s los.');
-      if (now - state.readySince >= READY_HOLD_MS) beginCountdown(now);
+      if (state.mode2 === 'voice') {
+        hint(state.voiceDenied ? 'Position passt. Das Mikrofon ist nicht freigegeben – tippe auf „Jetzt starten“.' : 'Position passt. Sag „Start“, um die Messung zu beginnen.');
+        $('goBtn').hidden = false;
+        if (state.speech.spoken !== 'ready') { say('Position passt. Du kannst jetzt das Startwort sagen.'); state.speech.spoken = 'ready'; state.speech.at = now; }
+      } else {
+        hint('Position passt – gleich geht’s los.');
+        if (now - state.readySince >= READY_HOLD_MS) beginCountdown(now);
+      }
     } else {
       state.readySince = null;
+      $('goBtn').hidden = true;
       banner('Warte auf Position');
       hint(r.hint);
       speakHint(r.issue, r.hint, now);
@@ -409,10 +503,26 @@ function cameraPhase(now, fresh) {
     return;
   }
 
+  if (state.phase === 'timer') {
+    renderChecks(r);
+    const left = Math.ceil((state.phaseEnd - now) / 1000);
+    if (left !== state.lastCount) {
+      state.lastCount = left;
+      if (left <= 3 && left > 0) say(String(left));
+    }
+    if (left > 0) {
+      banner(String(left), 'big');
+      hint(r && !r.ok ? `Start in ${left} s. ${r.hint}` : `Start in ${left} s – locker weitertreten.`);
+      return;
+    }
+    state.phase = 'countdown';
+    state.phaseEnd = now;                 // ohne weiteren Countdown direkt starten
+  }
+
   if (state.phase === 'countdown') {
     renderChecks(r);
     // Passt die Position nicht mehr, zurück zum Warten
-    if (r && !r.ok) { state.badSince ??= now; if (now - state.badSince > 1000) { state.phase = 'waiting'; state.readySince = null; say('Position verloren.'); return; } } else state.badSince = null;
+    if (r && !r.ok && state.mode2 !== 'timer') { state.badSince ??= now; if (now - state.badSince > 1000) { state.phase = 'waiting'; state.readySince = null; say('Position verloren.'); return; } } else state.badSince = null;
     const left = Math.ceil((state.phaseEnd - now) / 1000);
     if (left > 0) { hint('Gleich geht’s los – locker weitertreten.'); return banner(String(left), 'big'); }
     state.phase = 'record';
@@ -423,6 +533,7 @@ function cameraPhase(now, fresh) {
     state.badSince = null;
     state.clip = startClip();
     renderChecks(null);
+    $('goBtn').hidden = true;
     say('Los');
   }
 
@@ -977,6 +1088,7 @@ function showRecord(rec, { previous = null, demo = false, stored = false, liveCl
 function renderHistory() {
   const hist = loadHistory();
   $('history').hidden = !hist.length;
+  $('jumpHistory').hidden = !hist.length;
   $('historyList').replaceChildren(...hist.map((h, i) => {
     const row = el('button', 'hist');
     row.type = 'button';
@@ -1002,6 +1114,8 @@ $('demoBtn').onclick = () => {
   const rec = buildRecord(analyzeSession(syntheticSession({ saddleHeight: 73, torsoDeg: 41 }), settings()));
   showRecord(rec, { demo: true });
 };
+$('soundBtn').onclick = () => setSound(!prefs.sound);
+$('goBtn').onclick = () => { if (state.phase === 'waiting') beginCountdown(performance.now()); };
 $('cancelBtn').onclick = () => { stopMedia(); renderHistory(); show('setup'); };
 $('againBtn').onclick = () => { renderHistory(); show('setup'); };
 $('switchBtn').onclick = async () => {

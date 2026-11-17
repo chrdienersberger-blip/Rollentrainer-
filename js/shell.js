@@ -12,13 +12,13 @@ function go() {
   for (const a of links) a.setAttribute('aria-current', a.dataset.sec === sec ? 'page' : 'false');
   window.scrollTo(0, 0);
   // Startseite bei jedem Besuch neu aufbauen, damit „Zuletzt“ aktuell ist
-  if (sec === 'start') import('./start.js?v=18').then((m) => m.renderStart(document.getElementById('start')));
+  if (sec === 'start') import('./start.js?v=19').then((m) => m.renderStart(document.getElementById('start')));
 }
 addEventListener('hashchange', go);
 go();
 
-import('./training.js?v=18').then((m) => m.initTraining(document.getElementById('training')));
-import('./market.js?v=18').then((m) => m.renderMarket(document.getElementById('market')));
+import('./training.js?v=19').then((m) => m.initTraining(document.getElementById('training')));
+import('./market.js?v=19').then((m) => m.renderMarket(document.getElementById('market')));
 
 // Menüleiste ein- und ausblenden
 const MENU_KEY = 'rollentrainer.menu.v1';
@@ -34,3 +34,10 @@ toggle.onclick = () => setMenu(document.body.classList.contains('norail'));
 let saved = null;
 try { saved = localStorage.getItem(MENU_KEY); } catch { /* optional */ }
 setMenu(saved !== '0');
+
+// Sprungleisten „Auf dieser Seite“: scrollt zum Abschnitt, ohne die Adresse (#bereich) zu ändern
+document.addEventListener('click', (e) => {
+  const b = e.target.closest('[data-jump]');
+  if (!b) return;
+  document.getElementById(b.dataset.jump)?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+});

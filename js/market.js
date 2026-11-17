@@ -37,7 +37,7 @@ const GROUPS = [
   ] },
 ];
 
-import { BRANDS, CATEGORIES } from './bikes.js?v=18';
+import { BRANDS, CATEGORIES } from './bikes.js?v=19';
 
 const STARTER_KEY = 'rollentrainer.starter.v1';
 const DOMAIN = { Canyon: 'canyon.com', 'Cervélo': 'cervelo.com', Specialized: 'specialized.com', Trek: 'trekbikes.com', Giant: 'giant-bicycles.com',
@@ -170,7 +170,10 @@ export function renderMarket(root) {
   const intro = el('div', 'pagehead');
   intro.append(el('h1', null, 'Rad und Ausrüstung'),
     el('p', null, 'Was du für den Einstieg brauchst, welches Rad zu dir passt und wo du es findest.'));
-  root.replaceChildren(head, intro, advisor(st), checklist(st));
+  const jb = el('nav', 'jumpbar');
+  jb.setAttribute('aria-label', 'Auf dieser Seite');
+  for (const [label, id] of [['Rad-Berater', 'berater'], ['Ausstattung', 'ausstattung'], ['Marken', 'marken']]) { const b = el('button', null, label); b.type = 'button'; b.dataset.jump = id; jb.append(b); }
+  root.replaceChildren(head, intro, jb, advisor(st), checklist(st));
   const dir = el('div', 'step dirhead');
   dir.id = 'marken';
   dir.append(el('span', null, '3'), el('h2', null, 'Marken und Händler'));

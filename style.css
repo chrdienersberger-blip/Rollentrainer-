@@ -507,3 +507,26 @@ body.worldfull { overflow: hidden; }
   .hintbig { font-size: 1.15rem; }
   .checks { grid-template-columns: 1fr; }
 }
+
+/* Sprungleiste „Auf dieser Seite“ – bleibt beim Scrollen oben */
+.jumpbar { position: sticky; top: 0; z-index: 4; display: flex; gap: 6px; overflow-x: auto; scrollbar-width: none;
+  margin: 0 -20px 4px; padding: 10px 20px; background: var(--bg); border-bottom: 1px solid var(--line); }
+.jumpbar::-webkit-scrollbar { display: none; }
+.jumpbar button { flex: none; width: auto; margin: 0; padding: 8px 13px; font-size: .62rem; letter-spacing: .1em; border: 1px solid var(--line); background: transparent; }
+.jumpbar button:hover, .jumpbar button:focus-visible { border-color: var(--ink); }
+body.norail .jumpbar { padding-left: 64px; }
+#setup .card, #training .card, #market section, #market .dirhead { scroll-margin-top: 64px; }
+@media (min-width: 620px) { .jumpbar { margin-left: 0; margin-right: 0; padding-left: 0; padding-right: 0; } body.norail .jumpbar { padding-left: 54px; } }
+
+/* Start-Knopf beim Bike-Fitting bleibt unten sichtbar */
+.stickyact { position: sticky; bottom: 0; z-index: 3; margin: 0 -20px; padding: 10px 20px calc(10px + env(safe-area-inset-bottom)); background: var(--bg); border-top: 1px solid var(--line); }
+.stickyact .primary { margin: 0; }
+@media (min-width: 620px) { .stickyact { margin: 0; padding-left: 0; padding-right: 0; } }
+
+.lbl.first { margin-top: 0; }
+#modeSeg button { text-align: left; }
+#live .row { flex-wrap: wrap; }
+#live .row > * { flex: 1 1 120px; }
+#modeSeg { grid-auto-flow: row; grid-template-columns: 1fr; }
+#modeSeg button small { display: inline; margin-left: 8px; }
+@media (min-width: 620px) { #modeSeg { grid-template-columns: repeat(3, 1fr); } #modeSeg button small { display: block; margin-left: 0; } }
