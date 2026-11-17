@@ -44,7 +44,9 @@ export function toFit(startMs, samples) {
   const avg = (a) => (a.length ? a.reduce((x, y) => x + y, 0) / a.length : 0);
   const dist = n ? samples[n - 1].dist ?? 0 : 0;
 
-  write(0, 0, [[0, 'enum', 4], [1, 'uint16', 255], [2, 'uint16', 1], [3, 'uint32z', 1], [4, 'uint32', start]]);   // Datei: Aktivität
+  write(0, 0, [[0, 'enum', 4], [1, 'uint16', 255], [2, 'uint16', 1], [3, 'uint32z', 12345], [4, 'uint32', start]]);   // Datei: Aktivität
+  write(6, 49, [[0, 'uint16', 100], [1, 'uint8', 1]]);                                                                        // erzeugendes Programm
+  write(7, 23, [[253, 'uint32', start], [0, 'uint8', 0], [2, 'uint16', 255], [4, 'uint16', 1], [3, 'uint32z', 12345], [5, 'uint16', 100]]); // Gerät
   write(1, 21, [[253, 'uint32', start], [0, 'enum', 0], [1, 'enum', 0]]);                                          // Timer gestartet
   samples.forEach((s, i) => write(2, 20, [
     [253, 'uint32', start + i],
@@ -61,7 +63,8 @@ export function toFit(startMs, samples) {
     [9, 'uint32', dist * 100], [5, 'enum', 2], [6, 'enum', 6], [0, 'enum', 8], [1, 'enum', 1], [25, 'uint16', 0], [26, 'uint16', 1],
     [20, 'uint16', avg(power)], [21, 'uint16', Math.max(0, ...power)],
     [16, 'uint8', hr.length ? avg(hr) : 0xff], [18, 'uint8', cad.length ? avg(cad) : 0xff]]);                       // Radfahren, drinnen
-  write(5, 34, [[253, 'uint32', end], [0, 'uint32', n * 1000], [1, 'uint16', 1], [2, 'enum', 0], [3, 'enum', 26], [4, 'enum', 1]]);
+  const tz = -new Date(startMs).getTimezoneOffset() * 60;                                                                     // Ortszeit für Garmin
+  write(5, 34, [[253, 'uint32', end], [0, 'uint32', n * 1000], [1, 'uint16', 1], [2, 'enum', 0], [3, 'enum', 26], [4, 'enum', 1], [5, 'uint32', end + tz]]);
 
   const data = Uint8Array.from(out);
   const header = new Uint8Array(14);

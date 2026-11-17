@@ -1,0 +1,43 @@
+# Baut die iPhone-App (unsigniert) auf einem Mac von GitHub und legt sie als RideMore.ipa ab.
+# Die .ipa lässt sich mit einer kostenlosen Apple-ID per Sideloadly oder AltStore aufs iPhone bringen.
+name: iPhone-App bauen
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [claude/bike-position-analyzer-2svo30, main]
+    paths: ['js/**', 'app/**', 'ios/**', 'index.html', 'style.css', 'img/**', 'package*.json', 'capacitor.config.json', '.github/workflows/ios.yml']
+
+jobs:
+  ipa:
+    runs-on: macos-15
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - name: Abhängigkeiten
+        run: npm ci
+      - name: Web-Dateien zusammenstellen
+        run: npm run app:build
+      - name: iOS-Projekt abgleichen
+        run: npx cap sync ios
+      - name: App bauen (ohne Signatur)
+        run: |
+          xcodebuild -project ios/App/App.xcodeproj -scheme App -configuration Release \
+            -sdk iphoneos -destination 'generic/platform=iOS' -derivedDataPath build \
+            CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO CODE_SIGN_IDENTITY="" build | tail -n 60
+          test -d build/Build/Products/Release-iphoneos/App.app
+      - name: .ipa packen
+        run: |
+          mkdir -p Payload
+          cp -R build/Build/Products/Release-iphoneos/App.app Payload/
+          zip -qry RideMore.ipa Payload
+          ls -la RideMore.ipa
+      - uses: actions/upload-artifact@v4
+        with:
+          name: RideMore-ipa
+          path: RideMore.ipa
+          retention-days: 30

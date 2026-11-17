@@ -12,15 +12,15 @@ function go() {
   for (const a of links) a.setAttribute('aria-current', a.dataset.sec === sec ? 'page' : 'false');
   window.scrollTo(0, 0);
   // Startseite bei jedem Besuch neu aufbauen, damit „Zuletzt“ aktuell ist
-  if (sec === 'start') import('./start.js?v=23').then((m) => m.renderStart(document.getElementById('start')));
+  if (sec === 'start') import('./start.js?v=24').then((m) => m.renderStart(document.getElementById('start')));
 }
 // Rückkehr von der Strava-Anmeldung: direkt ins Training
 if (new URLSearchParams(location.search).get('state') === 'ridemore') history.replaceState(null, '', `${location.pathname}${location.search}#training`);
 addEventListener('hashchange', go);
 go();
 
-import('./training.js?v=23').then((m) => m.initTraining(document.getElementById('training')));
-import('./market.js?v=23').then((m) => m.renderMarket(document.getElementById('market')));
+import('./training.js?v=24').then((m) => m.initTraining(document.getElementById('training')));
+import('./market.js?v=24').then((m) => m.renderMarket(document.getElementById('market')));
 
 // Menüleiste ein- und ausblenden
 const MENU_KEY = 'rollentrainer.menu.v1';

@@ -1,9 +1,9 @@
 // Trainingsbereich: Trainer verbinden, Workouts (ERG) und Strecken (Steigungssimulation) fahren.
 
-import { stravaState, saveCredentials, setAuto, disconnect as stravaDisconnect, connect as stravaConnect, handleRedirect, uploadFit, activityUrl, redirectUri } from './strava.js?v=23';
-import { Trainer, bluetoothAvailable } from './trainer.js?v=23';
-import { WORKOUTS, ROUTES, workoutDuration, routeLength, routeClimb, routeFromTrack, targetAt, gradeAt, elevationAt, stepSpeed, summarize, toTcx, PLAN, planItem, prepFor, trainerGrade, ergNext, isPedaling,
-  POWER_ZONES, HR_ZONES, powerZone, hrZone, expectedHrZone, cadenceRange, powerRange, judge } from './workouts.js?v=23';
+import { stravaState, saveCredentials, setAuto, disconnect as stravaDisconnect, connect as stravaConnect, handleRedirect, uploadFit, activityUrl, redirectUri } from './strava.js?v=24';
+import { Trainer, bluetoothAvailable } from './trainer.js?v=24';
+import { WORKOUTS, ROUTES, workoutDuration, routeLength, routeClimb, routeFromTrack, targetAt, gradeAt, elevationAt, stepSpeed, summarize, toTcx, PLAN, planItem, prepFor, trainerGrade, ergNext, isPedaling, nextChange,
+  POWER_ZONES, HR_ZONES, powerZone, hrZone, expectedHrZone, cadenceRange, powerRange, judge } from './workouts.js?v=24';
 
 const PREFS_KEY = 'rollentrainer.training.v1', RIDES_KEY = 'rollentrainer.rides.v1', ROUTES_KEY = 'rollentrainer.routes.v1';
 const SVGNS = 'http://www.w3.org/2000/svg';
@@ -40,7 +40,7 @@ const store = {
 };
 
 export function initTraining(root) {
-  const prefs = { ftp: 200, weight: 75, maxHr: 185, difficulty: 50, tab: 'workouts', planDone: {}, ...store.get(PREFS_KEY, {}) };
+  const prefs = { ftp: 200, weight: 75, maxHr: 185, difficulty: 50, rideSound: true, tab: 'workouts', planDone: {}, ...store.get(PREFS_KEY, {}) };
   const savePrefs = () => store.set(PREFS_KEY, prefs);
   const ftp = () => Math.min(500, Math.max(80, Number(prefs.ftp) || 200));
   const maxHr = () => Math.min(230, Math.max(120, Number(prefs.maxHr) || 185));
@@ -473,7 +473,7 @@ export function initTraining(root) {
       }
       btn.disabled = true;
       try {
-        const { toFit } = await import('./fit.js?v=23');
+        const { toFit } = await import('./fit.js?v=24');
         const s2 = r.stats;
         const res = await uploadFit(toFit(r.date, r.samples), {
           name: `${r.name} · Ride More`,
@@ -585,11 +585,11 @@ export function initTraining(root) {
     const extras = [];
     if (kind === 'route') {
       // echte 3D-Welt, wo das Gerät WebGL kann; sonst die einfache gezeichnete Ansicht
-      const w3 = await import('./world3d.js?v=23').catch(() => null);
+      const w3 = await import('./world3d.js?v=24').catch(() => null);
       if (w3?.webglAvailable()) {
         try { world = w3.createWorld3D(def); } catch (err) { console.error(err); world = null; }
       }
-      if (!world) world = (await import('./world.js?v=23')).createWorld(def);
+      if (!world) world = (await import('./world.js?v=24')).createWorld(def);
       ride.world = world;
       extras.push(world.el);
     }
@@ -610,6 +610,16 @@ export function initTraining(root) {
       mapPos = (frac) => { const [x, y] = px(Math.round(Math.max(0, Math.min(1, frac)) * (def.track.length - 1))); mapDot.setAttribute('cx', x); mapDot.setAttribute('cy', y); };
       (world ? world.el : extras).append(map);
     }
+    // Intervall-Timer: wann der nächste Sprung kommt, wie hoch und wie lang
+    const nx = el('div', 'nextint');
+    if (kind === 'workout') {
+      nx.innerHTML = '<div class="nxtime"><b>–</b><small>bis zum nächsten Wechsel</small></div><div class="nxnext"><b>–</b><small></small></div><div class="nxbar"><i></i></div>';
+    } else nx.hidden = true;
+    const say = (text) => {
+      if (!prefs.rideSound) return;
+      try { const u = new SpeechSynthesisUtterance(text); u.lang = 'de-DE'; speechSynthesis.cancel(); speechSynthesis.speak(u); } catch { /* optional */ }
+    };
+
     const chart = el('div', 'ridechart');
     const pf = profile(kind, def, { H: 130, big: true });
     const trace = svgEl('polyline', { fill: 'none', stroke: ACCENT, 'stroke-width': 1.6, 'stroke-linejoin': 'round' }, pf.svg);
@@ -629,6 +639,12 @@ export function initTraining(root) {
       btn('+ 5 %', 'secondary', () => { ride.bias = Math.min(1.5, ride.bias + 0.05); ride.lastCmd = null; liveHook(); });
       biasLabel = el('p', 'hint ridebias');
     }
+    const soundBtn = btn(prefs.rideSound ? 'Ton aus' : 'Ton an', 'secondary', () => {
+      prefs.rideSound = !prefs.rideSound; savePrefs();
+      soundBtn.textContent = prefs.rideSound ? 'Ton aus' : 'Ton an';
+      if (!prefs.rideSound) try { speechSynthesis.cancel(); } catch { /* optional */ }
+    });
+    if (kind !== 'workout') soundBtn.hidden = true;
     const pauseBtn = btn('Pause', 'secondary', () => {
       ride.paused = !ride.paused;
       pauseBtn.textContent = ride.paused ? 'Weiter' : 'Pause';
@@ -641,7 +657,7 @@ export function initTraining(root) {
     const warn = el('p', 'alert');
     warn.hidden = true;
     const tstat = el('p', 'tstat');
-    root.replaceChildren(top, ...extras, tiles, gauges, chart, ctl, ...(biasLabel ? [biasLabel] : []), warn, tstat);
+    root.replaceChildren(top, ...extras, tiles, nx, gauges, chart, ctl, ...(biasLabel ? [biasLabel] : []), warn, tstat);
 
     liveHook = () => {
       if (!ride) return;
@@ -660,7 +676,23 @@ export function initTraining(root) {
         time.textContent = clock(total - ride.t);
         updateGauges(tg);
         vTarget.textContent = tg ? de(tg.watts * ride.bias) : '–';
-        segInfo.textContent = ride.paused ? 'Pausiert – Widerstand locker' : tg ? `Abschnitt ${tg.index + 1} von ${def.segs.length} · noch ${clock(tg.remaining)}` : '';
+        segInfo.textContent = ride.paused ? 'Pausiert – Widerstand locker' : tg ? `Abschnitt ${tg.index + 1} von ${def.segs.length}` : '';
+        const nc = nextChange(def, ride.t, ftp());
+        if (nc) {
+          const w = (x) => Math.round(x * ride.bias);
+          nx.querySelector('.nxtime b').textContent = clock(nc.in);
+          nx.querySelector('.nxnext b').textContent = `${nc.up ? '↑' : '↓'} ${w(nc.next.watts)}${nc.next.ramp ? `–${w(nc.next.wattsEnd)}` : ''} W`;
+          nx.querySelector('.nxnext small').textContent = `für ${clock(nc.next.duration)}${nc.after ? ` · danach ${w(nc.after.watts)} W` : ''}`;
+          nx.querySelector('.nxbar i').style.width = `${Math.max(0, Math.min(100, (1 - nc.in / nc.blockDur) * 100))}%`;
+          nx.classList.toggle('soon', nc.in <= 10);
+          nx.classList.toggle('up', nc.up);
+        } else {
+          nx.querySelector('.nxtime b').textContent = clock(workoutDuration(def) - ride.t);
+          nx.querySelector('.nxtime small').textContent = 'bis zum Ende';
+          nx.querySelector('.nxnext b').textContent = 'Letzter Block';
+          nx.querySelector('.nxnext small').textContent = '';
+          nx.classList.remove('soon');
+        }
         biasLabel.textContent = ride.bias === 1 ? 'Intensität 100 %' : `Intensität ${Math.round(ride.bias * 100)} %`;
         cursor.setAttribute('x1', pf.x(ride.t)); cursor.setAttribute('x2', pf.x(ride.t));
         marker.setAttribute('cx', pf.x(ride.t));
@@ -686,6 +718,10 @@ export function initTraining(root) {
         const tg = targetAt(def, ride.t, ftp());
         if (!tg) return finishRide();
         target = Math.round(tg.watts * ride.bias);
+        // Ansagen vor dem nächsten Sprung: 10 Sekunden vorher mit Ziel und Dauer, dann 3-2-1
+        const nc = nextChange(def, ride.t, ftp()), left = nc ? Math.round(nc.in) : null;
+        if (left === 10) say(`In zehn Sekunden: ${Math.round(nc.next.watts * ride.bias)} Watt für ${nc.next.duration >= 60 ? `${Math.round(nc.next.duration / 60)} Minuten` : `${nc.next.duration} Sekunden`}.`);
+        else if (left === 3) say('Drei'); else if (left === 2) say('Zwei'); else if (left === 1) say(nc.up ? 'Eins – los!' : 'Eins – locker.');
         // ERG erst, wenn getreten wird – aus dem Stand fühlt sich ERG sonst wie eine Wand an.
         // Abgeschaltet wird erst nach 4 Sekunden ohne Treten, nicht bei einem kurzen Einbruch der Trittfrequenz.
         ride.idle = isPedaling(d) ? 0 : (ride.idle ?? 0) + 1;
@@ -827,7 +863,7 @@ export function initTraining(root) {
       const fitBtn = el('button', 'primary', 'Fahrt exportieren (FIT)');
       fitBtn.type = 'button';
       fitBtn.onclick = async () => {
-        const { toFit } = await import('./fit.js?v=23');
+        const { toFit } = await import('./fit.js?v=24');
         deliver(new File([toFit(r.date, r.samples)], `ridemore-${stamp}.fit`, { type: 'application/octet-stream' }));
       };
       const tcxBtn = el('button', 'textbtn', 'Stattdessen als TCX-Datei');

@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { parseIndoorBikeData, parseCyclingPower, parseHeartRate, cmdTargetPower, cmdSimulation } from '../js/ftms.js';
-import { WORKOUTS, ROUTES, workoutDuration, targetAt, gradeAt, elevationAt, routeLength, routeClimb, stepSpeed, summarize, toTcx, PLAN, planItem, prepFor, powerZone, hrZone, expectedHrZone, cadenceRange, powerRange, judge, routeFromTrack, trainerGrade, ergTarget, ergNext, isPedaling } from '../js/workouts.js';
+import { WORKOUTS, ROUTES, workoutDuration, targetAt, gradeAt, elevationAt, routeLength, routeClimb, stepSpeed, summarize, toTcx, PLAN, planItem, prepFor, powerZone, hrZone, expectedHrZone, cadenceRange, powerRange, judge, routeFromTrack, trainerGrade, ergTarget, ergNext, isPedaling, nextChange } from '../js/workouts.js';
 
 const dv = (bytes) => new DataView(Uint8Array.from(bytes).buffer);
 
@@ -335,4 +335,19 @@ test('Trainer: Antworten auswerten, Steuerung bei Ablehnung neu anfordern', asyn
   assert.deepEqual(sent, [0x00, 0x07, 0x05, 0x00, 0x07, 0x05]);
   assert.match(t.statusText(), /ERG 180 W/);
   assert.match(t.statusText(), /bestätigt/);
+});
+
+test('Intervall-Timer: nächster Sprung, Dauer und was danach kommt', () => {
+  const vo2 = WORKOUTS.find((w) => w.id === 'vo2');
+  // Aufwärmrampe 10 min, 2 min locker, dann 5 × (3 min 118 % / 3 min 50 %)
+  const nc = nextChange(vo2, 650, 200);
+  assert.deepEqual({ in: nc.in, next: nc.next, after: nc.after, up: nc.up, blockDur: nc.blockDur },
+    { in: 70, next: { watts: 236, wattsEnd: 236, pct: 118, duration: 180, ramp: false }, after: { watts: 100, duration: 180 }, up: true, blockDur: 120 });
+  assert.equal(nextChange(vo2, 780, 200).next.watts, 100);
+  assert.equal(nextChange(vo2, 780, 200).up, false);
+  const last = workoutDuration(vo2) - 10;
+  assert.equal(nextChange(vo2, last, 200), null);           // im letzten Block kein Sprung mehr
+  // gleich hohe Abschnitte hintereinander zählen als ein Block
+  const flat = { segs: [[60, 50, 50], [60, 50, 50], [60, 100, 100]] };
+  assert.equal(nextChange(flat, 10, 200).in, 110);
 });

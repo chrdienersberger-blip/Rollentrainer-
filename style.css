@@ -547,3 +547,15 @@ body.norail .jumpbar { padding-left: 64px; }
 #tr-strava input { font: inherit; font-size: 1.05rem; color: var(--ink); background: transparent; border: 0; border-bottom: 1px solid var(--ink);
   border-radius: 0; padding: 10px 0; width: 100%; min-width: 0; -webkit-appearance: none; appearance: none; }
 #tr-strava .grid2 > label { min-width: 0; }
+
+/* Intervall-Timer */
+.nextint { display: grid; grid-template-columns: auto 1fr; gap: 4px 18px; align-items: end; padding: 14px 0 12px; border-bottom: 1px solid var(--ink); }
+.nextint b { display: block; font-weight: 400; letter-spacing: -.03em; font-variant-numeric: tabular-nums; line-height: 1.05; }
+.nxtime b { font-size: clamp(2.4rem, 12vw, 3.6rem); }
+.nxnext { text-align: right; }
+.nxnext b { font-size: 1.6rem; }
+.nextint small { color: var(--muted); font-size: .58rem; text-transform: uppercase; letter-spacing: .1em; }
+.nxbar { grid-column: 1 / -1; height: 4px; background: var(--line); margin-top: 6px; }
+.nxbar i { display: block; height: 100%; background: var(--ink); }
+.nextint.soon .nxtime b { color: var(--bad); }
+.nextint.soon.up .nxbar i { background: var(--bad); }

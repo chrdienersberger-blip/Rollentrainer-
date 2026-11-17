@@ -69,6 +69,35 @@ export function targetAt(workout, t, ftp) {
   return null;
 }
 
+/**
+ * Nächster Sprung im Intervallprofil: wann sich die Zielleistung das nächste Mal sprunghaft ändert,
+ * wie hoch und wie lang der nächste Block ist und was danach kommt. Gleitende Rampen zählen als ein Block.
+ * Liefert null, wenn kein Sprung mehr kommt.
+ */
+export function nextChange(workout, t, ftp) {
+  const blocks = [];
+  let start = 0;
+  for (const [dur, from, to] of workout.segs) {
+    const last = blocks[blocks.length - 1];
+    // zwei gleich hohe, gleichmäßige Abschnitte hintereinander sind kein Sprung
+    if (last && last.from === last.to && from === to && Math.abs(last.to - from) < 1) {
+      last.dur += dur; last.to = to;
+    } else blocks.push({ start, dur, from, to });
+    start += dur;
+  }
+  const i = blocks.findIndex((b) => t < b.start + b.dur);
+  if (i < 0 || i + 1 >= blocks.length) return null;
+  const b = blocks[i + 1], c = blocks[i + 2];
+  const watts = (pct) => Math.round((pct / 100) * ftp);
+  return {
+    in: blocks[i].start + blocks[i].dur - t,
+    blockDur: blocks[i].dur,
+    next: { watts: watts(b.from), wattsEnd: watts(b.to), pct: b.from, duration: b.dur, ramp: b.from !== b.to },
+    after: c ? { watts: watts(c.from), duration: c.dur } : null,
+    up: b.from > blocks[i].to,
+  };
+}
+
 function segmentAt(route, distM) {
   const km = Math.max(0, distM / 1000), pts = route.points;
   let i = 1;
