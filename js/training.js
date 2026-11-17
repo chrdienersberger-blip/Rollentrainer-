@@ -1,8 +1,8 @@
 // Trainingsbereich: Trainer verbinden, Workouts (ERG) und Strecken (Steigungssimulation) fahren.
 
-import { Trainer, bluetoothAvailable } from './trainer.js?v=17';
+import { Trainer, bluetoothAvailable } from './trainer.js?v=18';
 import { WORKOUTS, ROUTES, workoutDuration, routeLength, routeClimb, routeFromTrack, targetAt, gradeAt, elevationAt, stepSpeed, summarize, toTcx, PLAN, planItem, prepFor,
-  POWER_ZONES, HR_ZONES, powerZone, hrZone, expectedHrZone, cadenceRange, powerRange, judge } from './workouts.js?v=17';
+  POWER_ZONES, HR_ZONES, powerZone, hrZone, expectedHrZone, cadenceRange, powerRange, judge } from './workouts.js?v=18';
 
 const PREFS_KEY = 'rollentrainer.training.v1', RIDES_KEY = 'rollentrainer.rides.v1', ROUTES_KEY = 'rollentrainer.routes.v1';
 const SVGNS = 'http://www.w3.org/2000/svg';
@@ -13,7 +13,7 @@ const FONT = 'Helvetica Neue, Helvetica, Arial, sans-serif';
 const brandName = () => {
   const b = document.createElement('span');
   b.className = 'brandname';
-  b.innerHTML = '<svg class="logo small" viewBox="0 0 64 34" aria-hidden="true"><path d="M2 32 25 5l9 10.5L41 8l21 24H51.5L41 19.6l-6.6 7.6L25 16.2 13 32z" fill="currentColor"/></svg>Ride More';
+  b.innerHTML = '<svg class="logo small" viewBox="0 0 100 48.4" aria-hidden="true"><path d="M55.4 0.3 35.6 18.5 31.7 15.3 0.0 48.2 30.1 27.3 32.7 31.5 52.5 14.5 61.6 21.3 65.1 17.0Z M53.3 33.4 71.1 25.3 99.9 48.1 73.1 12.8Z" fill="currentColor"/></svg>Ride More';
   return b;
 };
 const el = (tag, cls, text) => {
@@ -466,7 +466,7 @@ export function initTraining(root) {
     let mapDot = null, mapPos = null, world = null;
     const extras = [];
     if (kind === 'route') {
-      const { createWorld } = await import('./world.js?v=17');
+      const { createWorld } = await import('./world.js?v=18');
       world = createWorld(def);
       ride.world = world;
       extras.push(world.el);
@@ -688,7 +688,7 @@ export function initTraining(root) {
       const fitBtn = el('button', 'primary', 'Fahrt exportieren (FIT)');
       fitBtn.type = 'button';
       fitBtn.onclick = async () => {
-        const { toFit } = await import('./fit.js?v=17');
+        const { toFit } = await import('./fit.js?v=18');
         deliver(new File([toFit(r.date, r.samples)], `ridemore-${stamp}.fit`, { type: 'application/octet-stream' }));
       };
       const tcxBtn = el('button', 'textbtn', 'Stattdessen als TCX-Datei');

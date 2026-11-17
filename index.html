@@ -8,12 +8,12 @@
   <meta name="apple-mobile-web-app-status-bar-style" content="default">
   <title>Ride More – Training und Bike-Fitting auf dem Rollentrainer</title>
   <link rel="manifest" href="manifest.webmanifest">
-  <link rel="stylesheet" href="style.css?v=17">
+  <link rel="stylesheet" href="style.css?v=18">
 </head>
 <body>
   <button id="railToggle" class="railtoggle" type="button" aria-controls="rail"></button>
   <nav id="rail" class="rail" aria-label="Hauptmenü">
-    <a class="raillogo" href="#start" aria-label="Ride More Startseite"><svg class="logo" viewBox="0 0 64 34" aria-hidden="true"><path d="M2 32 25 5l9 10.5L41 8l21 24H51.5L41 19.6l-6.6 7.6L25 16.2 13 32z" fill="currentColor"/></svg><span>Ride More</span></a>
+    <a class="raillogo" href="#start" aria-label="Ride More Startseite"><svg class="logo" viewBox="0 0 100 48.4" aria-hidden="true"><path d="M55.4 0.3 35.6 18.5 31.7 15.3 0.0 48.2 30.1 27.3 32.7 31.5 52.5 14.5 61.6 21.3 65.1 17.0Z M53.3 33.4 71.1 25.3 99.9 48.1 73.1 12.8Z" fill="currentColor"/></svg><span>Ride More</span></a>
     <a href="#start" data-sec="start">
       <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 11 12 4l8 7v9h-5v-6H9v6H4z"/></svg><span>Start</span>
     </a>
@@ -37,7 +37,7 @@
   <main id="setup" class="view">
     <header class="brand">
       <span class="logo" aria-hidden="true"></span>
-      <span class="brandname"><svg class="logo small" viewBox="0 0 64 34" aria-hidden="true"><path d="M2 32 25 5l9 10.5L41 8l21 24H51.5L41 19.6l-6.6 7.6L25 16.2 13 32z" fill="currentColor"/></svg>Ride More</span>
+      <span class="brandname"><svg class="logo small" viewBox="0 0 100 48.4" aria-hidden="true"><path d="M55.4 0.3 35.6 18.5 31.7 15.3 0.0 48.2 30.1 27.3 32.7 31.5 52.5 14.5 61.6 21.3 65.1 17.0Z M53.3 33.4 71.1 25.3 99.9 48.1 73.1 12.8Z" fill="currentColor"/></svg>Ride More</span>
       <span class="brandtag">Bike-Fitting-Check</span>
     </header>
 
@@ -84,6 +84,7 @@
         <li>Du bist von Kopf bis Fuß im Bild, auch am unteren Pedal.</li>
         <li>Gutes Licht, eng anliegende Kleidung, ruhiger Hintergrund.</li>
         <li>Hände in deiner üblichen Griffposition.</li>
+        <li>Die Messung startet von selbst, sobald du ganz im Bild bist und trittst – die App sagt dir an, was noch fehlt. Ton am Handy einschalten.</li>
       </ul>
     </details>
 
@@ -102,7 +103,7 @@
     </section>
 
     <p class="note">Das Video wird nur auf deinem Gerät ausgewertet und gespeichert, nichts wird hochgeladen. Messungen bleiben im Speicher dieses Browsers; das Video gibt es für die vier neuesten. Die Messung ist eine Orientierung (Genauigkeit etwa ±3–5°) und ersetzt kein professionelles Bikefitting.</p>
-    <p class="note ver">Ride More · Version 17</p>
+    <p class="note ver">Ride More · Version 18</p>
   </main>
 
   <!-- Messung -->
@@ -118,6 +119,10 @@
       </div>
       <div class="progress"><div id="progressBar"></div></div>
     </div>
+    <div id="status" class="status" aria-live="polite">
+      <p id="hint" class="hintbig"></p>
+      <div id="checks" class="checks" hidden></div>
+    </div>
     <div class="row">
       <button id="switchBtn" class="secondary">Kamera wechseln</button>
       <button id="cancelBtn" class="secondary">Abbrechen</button>
@@ -128,7 +133,7 @@
   <main id="results" class="view" hidden>
     <header class="brand">
       <span class="logo" aria-hidden="true"></span>
-      <span class="brandname"><svg class="logo small" viewBox="0 0 64 34" aria-hidden="true"><path d="M2 32 25 5l9 10.5L41 8l21 24H51.5L41 19.6l-6.6 7.6L25 16.2 13 32z" fill="currentColor"/></svg>Ride More</span>
+      <span class="brandname"><svg class="logo small" viewBox="0 0 100 48.4" aria-hidden="true"><path d="M55.4 0.3 35.6 18.5 31.7 15.3 0.0 48.2 30.1 27.3 32.7 31.5 52.5 14.5 61.6 21.3 65.1 17.0Z M53.3 33.4 71.1 25.3 99.9 48.1 73.1 12.8Z" fill="currentColor"/></svg>Ride More</span>
       <span id="resMeta" class="brandtag"></span>
     </header>
     <div id="resBody"></div>
@@ -138,7 +143,7 @@
 
   </section>
 
-  <script type="module" src="js/shell.js?v=17"></script>
-  <script type="module" src="js/app.js?v=17"></script>
+  <script type="module" src="js/shell.js?v=18"></script>
+  <script type="module" src="js/app.js?v=18"></script>
 </body>
 </html>

@@ -1,15 +1,16 @@
-import { extractSide, coreVisibility, frameAngles, analyzeSession, pickSide } from './analysis.js?v=17';
-import { evaluate, stability, saddleFromInseam, statusOf, rangeOf, STYLES } from './evaluate.js?v=17';
-import { BRANDS, CATEGORIES, findBike } from './bikes.js?v=17';
-import { syntheticSession } from './demo.js?v=17';
-import { putClip, getClip, pruneClips } from './clips.js?v=17';
-import { REGIONS, clipStatuses, share, frameAt, drawOutline, drawSkeleton as drawJoints } from './overlay.js?v=17';
-import { initHero } from './hero.js?v=17';
+import { extractSide, coreVisibility, frameAngles, analyzeSession, pickSide, readiness, inFrame, READY_LABELS } from './analysis.js?v=18';
+import { evaluate, stability, saddleFromInseam, statusOf, rangeOf, STYLES } from './evaluate.js?v=18';
+import { BRANDS, CATEGORIES, findBike } from './bikes.js?v=18';
+import { syntheticSession } from './demo.js?v=18';
+import { putClip, getClip, pruneClips } from './clips.js?v=18';
+import { REGIONS, clipStatuses, share, frameAt, drawOutline, drawSkeleton as drawJoints } from './overlay.js?v=18';
+import { initHero } from './hero.js?v=18';
 
 const MP_VERSION = '0.10.14';
 const MP_BASE = `https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@${MP_VERSION}`;
 const MODEL_URL = 'https://storage.googleapis.com/mediapipe-models/pose_landmarker/pose_landmarker_full/float16/1/pose_landmarker_full.task';
-const COUNTDOWN_S = 10;
+const COUNTDOWN_S = 3;          // kurzer Countdown, sobald die Position passt
+const READY_HOLD_MS = 1200;     // so lange muss alles passen, bevor er startet
 const HISTORY_KEY = 'rollentrainer.history.v1';
 const SETTINGS_KEY = 'rollentrainer.settings.v1';
 const SVGNS = 'http://www.w3.org/2000/svg';
@@ -161,6 +162,8 @@ function loadLandmarker() {
     const make = (delegate) => PoseLandmarker.createFromOptions(fileset, {
       baseOptions: { modelAssetPath: MODEL_URL, delegate },
       runningMode: 'VIDEO', numPoses: 1,
+      // etwas großzügiger als die Voreinstellung (0,5): auf dem Rad ist die Pose ungewöhnlich
+      minPoseDetectionConfidence: 0.3, minPosePresenceConfidence: 0.3, minTrackingConfidence: 0.3,
     });
     try { landmarker = await make('GPU'); } catch { landmarker = await make('CPU'); }
     return landmarker;
@@ -188,7 +191,7 @@ async function openCamera() {
   state.stream?.getTracks().forEach((t) => t.stop());
   state.stream = await navigator.mediaDevices.getUserMedia({
     audio: false,
-    video: { facingMode: state.facing, width: { ideal: 1280 }, height: { ideal: 720 } },
+    video: { facingMode: state.facing, width: { ideal: 1280 }, height: { ideal: 720 }, frameRate: { ideal: 30 } },
   });
   video.srcObject = state.stream;
   await video.play();
@@ -201,22 +204,74 @@ function resetRecording() {
   state.snapshotKnee = 0;
   state.lastVideoTime = -1;
   state.clip = null;
+  state.recent = [];
+  state.counted = 0;
+  state.readySince = null;
+  state.badSince = null;
+  state.lastTick = null;
+  state.ready = null;
   $('progressBar').style.width = '0';
 }
 
-function beginCountdown() {
+/** Warten, bis die Person vollständig, seitlich und tretend im Bild ist. */
+function beginWaiting() {
   resetRecording();
+  state.phase = 'waiting';
+  state.speech = { issue: null, since: 0, spoken: null, at: 0 };
+  say('Stell dich mit dem Rad ins Bild und tritt locker. Die Messung startet automatisch, sobald alles passt.');
+}
+
+function beginCountdown(now) {
   state.phase = 'countdown';
-  state.phaseEnd = performance.now() + COUNTDOWN_S * 1000;
-  say(`Messung startet in ${COUNTDOWN_S} Sekunden. Locker und gleichmäßig treten.`);
+  state.phaseEnd = now + COUNTDOWN_S * 1000;
+  state.badSince = null;
+  say('Position passt. Drei, zwei, eins.');
+}
+
+/** Hinweis vorlesen, wenn er sich geändert hat und kurz stabil ist – nicht öfter als alle paar Sekunden. */
+function speakHint(issue, text, now) {
+  const sp = state.speech;
+  if (issue !== sp.issue) { sp.issue = issue; sp.since = now; }
+  const stable = now - sp.since > 1500, fresh = sp.spoken !== issue && now - sp.at > 4000, again = now - sp.at > 12000;
+  if (issue && stable && (fresh || again)) { say(text); sp.spoken = issue; sp.at = now; }
+}
+
+function hint(text) { if ($('hint').textContent !== text) $('hint').textContent = text; }
+
+function renderChecks(r) {
+  const box = $('checks');
+  box.hidden = !r;
+  if (!r) return;
+  box.replaceChildren(...Object.entries(READY_LABELS).map(([k, label]) => {
+    const row = el('div', r.checks[k] ? 'ok' : '');
+    row.append(el('i', null, r.checks[k] ? '✓' : '·'), label);
+    return row;
+  }));
+}
+
+/** Mittlere Helligkeit des Kamerabilds (0–255), etwa einmal pro Sekunde gemessen. */
+let lightCanvas = null;
+function measureLight(now) {
+  if (state.lightAt && now - state.lightAt < 1000) return;
+  state.lightAt = now;
+  lightCanvas ??= Object.assign(document.createElement('canvas'), { width: 32, height: 18 });
+  const c = lightCanvas.getContext('2d', { willReadFrequently: true });
+  c.drawImage(video, 0, 0, 32, 18);
+  const d = c.getImageData(0, 0, 32, 18).data;
+  let sum = 0;
+  for (let i = 0; i < d.length; i += 4) sum += d[i] * 0.3 + d[i + 1] * 0.59 + d[i + 2] * 0.11;
+  state.brightness = sum / (d.length / 4);
 }
 
 async function start(mode, file) {
   $('setupError').hidden = true;
+  if (mode === 'camera') say('Kamera startet.');   // direkt beim Tippen – sonst bleibt die Sprachausgabe auf dem iPhone stumm
   state.mode = mode;
   show('live');
   $('switchBtn').hidden = mode !== 'camera';
   banner('Modell wird geladen …');
+  $('hint').textContent = mode === 'camera' ? 'Die Bewegungserkennung wird geladen …' : '';
+  renderChecks(null);
   try {
     if (mode === 'camera') {
       if (!navigator.mediaDevices?.getUserMedia) throw new Error('nocamera');
@@ -234,7 +289,7 @@ async function start(mode, file) {
       state.recStart = performance.now();
     } else {
       state.wakeLock = await navigator.wakeLock?.request('screen').catch(() => null);
-      beginCountdown();
+      beginWaiting();
     }
     loop();
   } catch (err) {
@@ -278,61 +333,121 @@ function loop() {
   state.raf = requestAnimationFrame(loop);
   if (video.readyState < 2 || !video.videoWidth) return;
   const now = performance.now();
+  const fresh = video.currentTime !== state.lastVideoTime;
+  if (fresh) detect(now);
+  if (state.mode === 'file') return filePhase();
+  cameraPhase(now, fresh);
+}
 
-  if (state.phase === 'countdown') {
-    const left = Math.ceil((state.phaseEnd - now) / 1000);
-    if (left <= 0) {
-      state.phase = 'record';
-      state.recStart = now;
-      state.samples = [];
-      state.clip = startClip();
-      say('Los');
-    } else {
-      banner(String(left), 'big');
-    }
-  }
-  if (state.phase === 'record') {
-    const total = state.mode === 'file' ? (video.duration || 1) * 1000 : prefs.duration * 1000;
-    const elapsed = state.mode === 'file' ? video.currentTime * 1000 : now - state.recStart;
-    $('progressBar').style.width = `${Math.min(100, (elapsed / total) * 100)}%`;
-    $('hudTime').textContent = `${Math.max(0, Math.ceil((total - elapsed) / 1000))} s`;
-    banner(state.mode === 'file' ? 'Video wird ausgewertet …' : '● Messung läuft – gleichmäßig treten', 'rec');
-    if (state.mode === 'camera' && elapsed >= total) return finish();
-  } else {
-    $('hudTime').textContent = '–';
-  }
-
-  if (video.currentTime === state.lastVideoTime) return;
+/** Bild auswerten: Pose erkennen, zeichnen, für Prüfung und Messung merken. */
+function detect(now) {
   state.lastVideoTime = video.currentTime;
   const w = video.videoWidth, h = video.videoHeight;
   if (canvas.width !== w || canvas.height !== h) { canvas.width = w; canvas.height = h; }
   ctx.drawImage(video, 0, 0, w, h);
+  if (state.mode === 'camera') measureLight(now);
 
   const lms = landmarker.detectForVideo(video, now).landmarks?.[0];
-  if (!lms) {
-    $('hudKnee').textContent = $('hudTorso').textContent = '–';
-    if (state.phase !== 'countdown') banner('Keine Person erkannt – bist du ganz im Bild?');
-    return;
+  let p = null, left = null, right = null;
+  if (lms) {
+    left = extractSide(lms, 'left', w, h); right = extractSide(lms, 'right', w, h);
+    state.votes.left += coreVisibility(left);
+    state.votes.right += coreVisibility(right);
+    p = state.votes.left >= state.votes.right ? left : right;
   }
-  const left = extractSide(lms, 'left', w, h), right = extractSide(lms, 'right', w, h);
-  state.votes.left += coreVisibility(left);
-  state.votes.right += coreVisibility(right);
-  const p = state.votes.left >= state.votes.right ? left : right;
-  const angles = frameAngles(p);
-  const visible = coreVisibility(p) >= 0.5;
-  if (visible) {
+  state.recent.push({ t: now, p, span: lms ? Math.abs(left.shoulder.x - right.shoulder.x) : 0 });
+  while (state.recent.length && state.recent[0].t < now - 2500) state.recent.shift();
+  state.frameOk = !!p && coreVisibility(p) >= 0.4 && inFrame(p, w, h);
+
+  if (!p || coreVisibility(p) < 0.35) {
+    $('hudKnee').textContent = $('hudTorso').textContent = '–';
+  } else {
+    const angles = frameAngles(p);
     drawSkeleton(p, angles);
     $('hudKnee').textContent = `${Math.round(angles.knee)}°`;
     $('hudTorso').textContent = `${Math.round(angles.torso)}°`;
-  }
-
-  if (state.phase === 'record') {
-    state.samples.push({ t: now, vt: state.mode === 'file' ? video.currentTime * 1000 : null, left, right, span: Math.abs(left.shoulder.x - right.shoulder.x) });
     // Standbild im Moment der größten Kniestreckung merken
-    if (visible && coreVisibility(p) >= 0.7 && angles.knee < 172 && angles.knee > state.snapshotKnee + 0.5) {
+    if (state.phase === 'record' && state.frameOk && coreVisibility(p) >= 0.6 && angles.knee < 172 && angles.knee > state.snapshotKnee + 0.5) {
       state.snapshotKnee = angles.knee;
       state.snapshot = smallSnapshot();
     }
+  }
+  if (state.phase === 'record' && lms) {
+    state.samples.push({ t: now, vt: state.mode === 'file' ? video.currentTime * 1000 : null, left, right, out: !inFrame(p, w, h), span: Math.abs(left.shoulder.x - right.shoulder.x) });
+  }
+}
+
+function filePhase() {
+  if (state.phase !== 'record') return;
+  const total = (video.duration || 1) * 1000, elapsed = video.currentTime * 1000;
+  $('progressBar').style.width = `${Math.min(100, (elapsed / total) * 100)}%`;
+  $('hudTime').textContent = `${Math.max(0, Math.ceil((total - elapsed) / 1000))} s`;
+  banner('Video wird ausgewertet …', 'rec');
+  hint('Das Video wird ausgewertet.');
+}
+
+function cameraPhase(now, fresh) {
+  const w = video.videoWidth, h = video.videoHeight;
+  if (fresh && state.phase !== 'record') state.ready = readiness(state.recent, w, h, { brightness: state.brightness });
+  const r = state.ready;
+
+  if (state.phase === 'waiting') {
+    renderChecks(r);
+    $('hudTime').textContent = '–';
+    if (!r) { hint('Kamera bereit …'); return banner('Kamera bereit'); }
+    if (r.ok) {
+      state.readySince ??= now;
+      banner('Position passt', 'okb');
+      hint('Position passt – gleich geht’s los.');
+      if (now - state.readySince >= READY_HOLD_MS) beginCountdown(now);
+    } else {
+      state.readySince = null;
+      banner('Warte auf Position');
+      hint(r.hint);
+      speakHint(r.issue, r.hint, now);
+    }
+    return;
+  }
+
+  if (state.phase === 'countdown') {
+    renderChecks(r);
+    // Passt die Position nicht mehr, zurück zum Warten
+    if (r && !r.ok) { state.badSince ??= now; if (now - state.badSince > 1000) { state.phase = 'waiting'; state.readySince = null; say('Position verloren.'); return; } } else state.badSince = null;
+    const left = Math.ceil((state.phaseEnd - now) / 1000);
+    if (left > 0) { hint('Gleich geht’s los – locker weitertreten.'); return banner(String(left), 'big'); }
+    state.phase = 'record';
+    state.recStart = now;
+    state.lastTick = now;
+    state.samples = [];
+    state.counted = 0;
+    state.badSince = null;
+    state.clip = startClip();
+    renderChecks(null);
+    say('Los');
+  }
+
+  if (state.phase === 'record') {
+    const total = prefs.duration * 1000;
+    // Die Zeit läuft nur, solange du gut erkannt wirst
+    if (fresh) {
+      if (state.frameOk) { state.counted += Math.min(250, now - state.lastTick); state.badSince = null; } else state.badSince ??= now;
+      state.lastTick = now;
+    }
+    const paused = state.badSince && now - state.badSince > 1500;
+    if (paused) {
+      const why = readiness(state.recent, w, h, { brightness: state.brightness }).hint;
+      banner('Pausiert');
+      hint(`Messung pausiert, die Zeit steht. ${why}`);
+      if (!state.pauseSaid) { say(`Messung pausiert. ${why}`); state.pauseSaid = true; }
+    } else {
+      if (state.pauseSaid) { say('Weiter geht’s.'); state.pauseSaid = false; }
+      banner('● Messung läuft', 'rec');
+      hint('Messung läuft – tritt gleichmäßig wie bei einer lockeren Ausfahrt.');
+    }
+    $('progressBar').style.width = `${Math.min(100, (state.counted / total) * 100)}%`;
+    $('hudTime').textContent = `${Math.max(0, Math.ceil((total - state.counted) / 1000))} s`;
+    // fertig, wenn genug Messzeit beisammen ist – oder nach dreifacher Dauer mit dem, was da ist
+    if (state.counted >= total || now - state.recStart > total * 3 + 20000) finish();
   }
 }
 
@@ -891,7 +1006,7 @@ $('cancelBtn').onclick = () => { stopMedia(); renderHistory(); show('setup'); };
 $('againBtn').onclick = () => { renderHistory(); show('setup'); };
 $('switchBtn').onclick = async () => {
   state.facing = state.facing === 'user' ? 'environment' : 'user';
-  try { await openCamera(); beginCountdown(); } catch (err) { console.error(err); }
+  try { await openCamera(); beginWaiting(); } catch (err) { console.error(err); }
 };
 document.addEventListener('visibilitychange', () => {
   if (!document.hidden || state.phase === 'idle') return;

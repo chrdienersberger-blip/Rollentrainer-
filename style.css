@@ -489,3 +489,21 @@ body.worldfull { overflow: hidden; }
   .world.full .wmetrics { top: 78px; bottom: auto; }
   .world.full .minimap { top: 140px; }
 }
+
+/* Positionsprüfung unter (im Querformat neben) dem Kamerabild – groß genug, um sie vom Rad aus zu lesen */
+.status { padding: 16px 4px 6px; }
+.hintbig { font-size: 1.35rem; font-weight: 500; line-height: 1.25; letter-spacing: -.01em; margin: 0 0 14px; min-height: 1.25em; }
+.checks { display: grid; grid-template-columns: 1fr 1fr; gap: 6px 14px; font-size: .86rem; }
+.checks div { display: flex; gap: 8px; align-items: center; color: var(--faint); }
+.checks div.ok { color: var(--ink); }
+.checks i { font-style: normal; width: 14px; text-align: center; font-weight: 700; }
+.checks div.ok i { color: var(--ok); }
+.banner.okb { background: #3f6b4fe6; }
+.banner { max-width: calc(100% - 20px); }
+@media (orientation: landscape) and (max-height: 640px) {
+  #live { display: grid; grid-template-columns: minmax(0, 1fr) 250px; gap: 0 14px; align-items: start; }
+  #live .row { grid-column: 1 / -1; }
+  #live .status { padding-top: 4px; }
+  .hintbig { font-size: 1.15rem; }
+  .checks { grid-template-columns: 1fr; }
+}

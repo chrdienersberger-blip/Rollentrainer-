@@ -1,8 +1,8 @@
 // Startseite: Überblick über die drei Bereiche, mit gezeichneten Grafiken.
 
-import { initHero, buildBike } from './hero.js?v=17';
-import { findBike } from './bikes.js?v=17';
-import { WORKOUTS, ROUTES, workoutDuration, routeLength } from './workouts.js?v=17';
+import { initHero, buildBike } from './hero.js?v=18';
+import { findBike } from './bikes.js?v=18';
+import { WORKOUTS, ROUTES, workoutDuration, routeLength } from './workouts.js?v=18';
 
 const SVGNS = 'http://www.w3.org/2000/svg';
 const INK = '#111110', PANEL = '#e4dfd5', MUTED = '#77736b', ACCENT = '#a8553a', GRID = '#d3cdc1';
@@ -11,7 +11,7 @@ const FONT = 'Helvetica Neue, Helvetica, Arial, sans-serif';
 const brandName = () => {
   const b = document.createElement('span');
   b.className = 'brandname';
-  b.innerHTML = '<svg class="logo small" viewBox="0 0 64 34" aria-hidden="true"><path d="M2 32 25 5l9 10.5L41 8l21 24H51.5L41 19.6l-6.6 7.6L25 16.2 13 32z" fill="currentColor"/></svg>Ride More';
+  b.innerHTML = '<svg class="logo small" viewBox="0 0 100 48.4" aria-hidden="true"><path d="M55.4 0.3 35.6 18.5 31.7 15.3 0.0 48.2 30.1 27.3 32.7 31.5 52.5 14.5 61.6 21.3 65.1 17.0Z M53.3 33.4 71.1 25.3 99.9 48.1 73.1 12.8Z" fill="currentColor"/></svg>Ride More';
   return b;
 };
 const el = (tag, cls, text) => {
@@ -114,7 +114,7 @@ export function renderStart(root) {
   // eigenes Foto, falls vorhanden
   const photo = new Image();
   photo.onload = () => { photo.className = 'herophoto'; photo.alt = 'Rennradfahrer in einer Kehre einer Bergstraße, darüber der Schriftzug „Ride More – Deine Tour. Dein Moment.“'; art.replaceChildren(photo); };
-  photo.src = 'img/hero.jpg?v=17';
+  photo.src = 'img/hero.jpg?v=18';
 
   // Dein Weg in vier Schritten
   const starter = (() => { try { return JSON.parse(localStorage.getItem('rollentrainer.starter.v1')) ?? {}; } catch { return {}; } })();
@@ -177,5 +177,5 @@ export function renderStart(root) {
     root.append(last);
   }
   root.append(el('p', 'note', 'Alle Daten bleiben auf deinem Gerät. Die Grafiken sind gezeichnet; die Bike-Fitting-Messung ist eine Orientierung und ersetzt kein professionelles Bikefitting.'),
-    el('p', 'note ver', 'Ride More · Version 17'));
+    el('p', 'note ver', 'Ride More · Version 18'));
 }

@@ -64,6 +64,70 @@ export function coreVisibility(p) {
   return Math.min(p.shoulder.v, p.hip.v, p.knee.v, p.ankle.v);
 }
 
+/** Liegen die wichtigen Punkte im Bild (nicht am Rand abgeschnitten)? */
+export function inFrame(p, w, h, margin = 0.015) {
+  const mx = w * margin, my = h * margin;
+  const keys = ['shoulder', 'hip', 'knee', 'ankle', ...['heel', 'toe'].filter((k) => p[k]?.v >= 0.3)];
+  return keys.every((k) => p[k].x >= mx && p[k].x <= w - mx && p[k].y >= my && p[k].y <= h - my);
+}
+
+export const READY_LABELS = { person: 'Person erkannt', frame: 'Ganz im Bild', side: 'Seitlich zur Kamera', visible: 'Gelenke gut erkennbar', pedal: 'Am Treten' };
+const HINTS = {
+  dark: 'Es ist zu dunkel. Mach mehr Licht an oder dreh dich zum Fenster.',
+  person: 'Ich sehe dich noch nicht. Setz dich aufs Rad, ganz im Bild.',
+  feet: 'Deine Füße sind nicht im Bild. Stell das Handy etwas weiter weg.',
+  top: 'Dein Oberkörper ist abgeschnitten. Stell das Handy weiter weg oder etwas höher.',
+  edge: 'Du bist am Bildrand. Richte das Handy mittig auf dich aus.',
+  small: 'Du bist sehr klein im Bild. Stell das Handy näher heran.',
+  side: 'Stell das Handy genau seitlich zu dir, im rechten Winkel zum Rad.',
+  visible: 'Deine Gelenke sind schwer zu erkennen. Mehr Licht und eng anliegende Kleidung helfen.',
+  pedal: 'Alles im Bild. Fang jetzt an, locker zu treten.',
+};
+
+/**
+ * Ist die Person bereit für die Messung? recent: die letzten Bilder
+ * [{ t (ms), p (Punkte der Körperseite zur Kamera oder null), span (Schulterabstand in px) }].
+ * Liefert { ok, checks, issue, hint } – hint ist eine kurze Anweisung, die auch vorgelesen werden kann.
+ */
+export function readiness(recent, w, h, { brightness = null } = {}) {
+  const checks = { person: false, frame: false, side: false, visible: false, pedal: false };
+  const last = recent[recent.length - 1];
+  const done = (issue) => ({ ok: !issue, checks, issue, hint: issue ? HINTS[issue] : 'Position passt – gleich geht’s los.' });
+  const dark = brightness != null && brightness < 40;
+  if (!last?.p) return done(dark ? 'dark' : 'person');
+  checks.person = true;
+  const now = last.t;
+  const sec = recent.filter((r) => r.t >= now - 1000 && r.p), two = recent.filter((r) => r.t >= now - 2000 && r.p);
+  const p = last.p, my = h * 0.015, mx = w * 0.015;
+  const share = (fn) => sec.filter((r) => fn(r.p)).length / Math.max(1, sec.length);
+
+  let issue = null;
+  checks.frame = share((q) => inFrame(q, w, h)) >= 0.8;
+  if (!checks.frame) {
+    const feet = ['ankle', 'heel', 'toe'].some((k) => (k === 'ankle' || p[k]?.v >= 0.3) && p[k].y > h - my);
+    const top = p.shoulder.y < my || (p.ear?.v >= 0.3 && p.ear.y < 0);
+    issue = feet ? 'feet' : top ? 'top' : ['shoulder', 'hip', 'knee', 'ankle'].some((k) => p[k].x < mx || p[k].x > w - mx) ? 'edge' : 'feet';
+  }
+  const shank = median(sec.map((r) => dist(r.p.knee, r.p.ankle)));
+  if (!issue && shank < 0.06 * h) issue = 'small';
+  const ratio = median(sec.map((r) => r.span / Math.max(1, dist(r.p.hip, r.p.shoulder))));
+  checks.side = ratio < 0.45;
+  if (!issue && !checks.side) issue = 'side';
+  checks.visible = share((q) => coreVisibility(q) >= 0.5) >= 0.7;
+  if (!issue && !checks.visible) issue = dark ? 'dark' : 'visible';
+  // Treten = der Fuß geht wiederholt auf und ab (nicht nur ein einmaliges Verrutschen)
+  let turns = 0, dir = 0, ext = two[0]?.p.ankle.y ?? 0;
+  for (const r of two) {
+    const y = r.p.ankle.y, th = 0.12 * shank;
+    if (dir >= 0 && y < ext - th) { if (dir > 0) turns++; dir = -1; ext = y; }
+    else if (dir <= 0 && y > ext + th) { if (dir < 0) turns++; dir = 1; ext = y; }
+    else ext = dir > 0 ? Math.max(ext, y) : dir < 0 ? Math.min(ext, y) : ext;
+  }
+  checks.pedal = two.length >= 8 && turns >= 2;
+  if (!issue && !checks.pedal) issue = 'pedal';
+  return done(issue);
+}
+
 /** Winkel eines Einzelbildes. */
 export function frameAngles(p) {
   return {
@@ -97,8 +161,8 @@ export function analyzeSession(samples, { heightCm = 175 } = {}) {
   }
   const side = pickSide(samples);
   const frames = samples
-    .map((s) => ({ t: s.t, p: s[side], span: s.span }))
-    .filter((f) => coreVisibility(f.p) >= 0.5);
+    .map((s) => ({ t: s.t, p: s[side], span: s.span, out: s.out }))
+    .filter((f) => !f.out && coreVisibility(f.p) >= 0.4);
   const validRatio = frames.length / samples.length;
   if (frames.length < 40) {
     return fail('Schulter, Hüfte, Knie und Knöchel waren zu selten gleichzeitig gut sichtbar.');
@@ -135,7 +199,7 @@ export function analyzeSession(samples, { heightCm = 175 } = {}) {
     if (period < 300 || period > 2000) continue; // 30–200 U/min
     let gap = 0;
     for (let i = i0 + 1; i <= i1; i++) gap = Math.max(gap, frames[i].t - frames[i - 1].t);
-    if (gap > 250 || i1 - i0 < 6) continue;
+    if (gap > 400 || i1 - i0 < 5) continue;
     cycles.push({ i0, i1, period });
   }
   const medPeriod = median(cycles.map((c) => c.period));

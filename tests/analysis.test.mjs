@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { angleAt, analyzeSession } from '../js/analysis.js';
+import { angleAt, analyzeSession, readiness, inFrame } from '../js/analysis.js';
 import { evaluate, saddleFromInseam, statusOf } from '../js/evaluate.js';
 import { clipStatuses, share, frameAt } from '../js/overlay.js';
 import { findBike, BRANDS, CATEGORIES } from '../js/bikes.js';
@@ -108,4 +108,40 @@ test('Video-Umrandung: Status je Bild und Bereich', () => {
   assert.equal(frameAt(low, 0), 0);
   assert.equal(frameAt(low, 1e9), low.length - 1);
   assert.equal(low[frameAt(low, 1010)].t, 1000);
+});
+
+test('Positionsprüfung vor der Messung', () => {
+  const toRecent = (samples) => samples.map((s) => ({ t: s.t, p: s.right, span: s.span }));
+  // Gelenkmodell liegt bei scale 6 etwa zwischen x 170…780 und y 280…860 Pixel
+  const riding = toRecent(syntheticSession({ seconds: 3 }));
+  const ok = readiness(riding, 1000, 900);
+  assert.equal(ok.ok, true, ok.hint);
+  assert.ok(Object.values(ok.checks).every(Boolean));
+
+  const cut = readiness(riding, 1000, 800);                       // Bild zu niedrig → Füße fehlen
+  assert.equal(cut.issue, 'feet');
+  assert.match(cut.hint, /Füße/);
+  assert.equal(inFrame(riding.at(-1).p, 1000, 800), false);
+
+  const still = readiness(toRecent(syntheticSession({ seconds: 3, crank: 0.2 })), 1000, 900);
+  assert.equal(still.issue, 'pedal');
+
+  const front = readiness(riding.map((r) => ({ ...r, span: 250 })), 1000, 900);
+  assert.equal(front.issue, 'side');
+  // ein einmaliger Sprung ist kein Treten
+  const jump = toRecent(syntheticSession({ seconds: 3, crank: 0.2 })).map((r, i) => (i < 40 ? r : { ...r, p: Object.fromEntries(Object.entries(r.p).map(([k, q]) => [k, { ...q, y: q.y - 60 }])) }));
+  assert.equal(readiness(jump, 1000, 900).issue, 'pedal');
+
+  assert.equal(readiness([], 1000, 900).issue, 'person');
+  assert.equal(readiness([{ t: 0, p: null }], 1000, 900, { brightness: 20 }).issue, 'dark');
+  const tiny = readiness(toRecent(syntheticSession({ seconds: 3, scale: 1 })), 1000, 900);
+  assert.equal(tiny.issue, 'small');
+});
+
+test('Auswertung verkraftet abgeschnittene Bilder und ruckelige Bildrate', () => {
+  const s = syntheticSession({ seconds: 40, fps: 12 });
+  s.forEach((x, i) => { if (i % 10 < 2) x.out = true; });          // jedes fünfte Bild am Rand abgeschnitten
+  const r = analyzeSession(s);
+  assert.ok(r.ok, r.reason);
+  assert.ok(r.cycles >= 20, `Umdrehungen ${r.cycles}`);
 });
