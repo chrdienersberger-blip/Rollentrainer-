@@ -264,8 +264,8 @@ export function routeFromTrack(name, pts) {
 }
 
 // ---------- Widerstand am Trainer ----------
-/** Ob gerade getreten wird (Trittfrequenz oder – bei reinen Leistungsmessern – Leistung). */
-export const isPedaling = (data) => (data.cadence || 0) >= 30 || (!data.cadence && (data.power || 0) >= 30);
+/** Ob gerade getreten wird: Trittfrequenz, Leistung oder Tempo des Trainers (der Kickr Core meldet ohne Sensor keine Trittfrequenz). */
+export const isPedaling = (data) => (data.cadence || 0) >= 25 || (data.power || 0) >= 25 || (data.speedKmh || 0) >= 8;
 
 /**
  * Steigung, die an den Trainer geht (Simulationsmodus). Wie bei Zwift wird die echte Steigung mit der
@@ -281,4 +281,14 @@ export function trainerGrade(real, { difficulty = 50, t = 99, prev = 0, pedaling
 /** Zielleistung im ERG-Modus mit sanftem Einstieg: die ersten 15 Sekunden von 60 auf 100 %. */
 export function ergTarget(target, t) {
   return Math.round(target * (t < 15 ? 0.6 + (0.4 * t) / 15 : 1));
+}
+
+/**
+ * Nächster ERG-Wert: sanfter Einstieg, große Sprünge nach oben (Intervallbeginn) über ein paar Sekunden
+ * verteilt – höchstens 12 % des Ziels bzw. 15 W pro Sekunde. Nach unten sofort.
+ */
+export function ergNext(prev, target, t) {
+  const want = ergTarget(target, t);
+  if (prev == null || want <= prev) return want;
+  return Math.round(Math.min(want, prev + Math.max(15, want * 0.12)));
 }

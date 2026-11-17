@@ -536,3 +536,4 @@ body.norail .jumpbar { padding-left: 64px; }
 .wload { position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); background: rgba(17,17,16,0.75); color: #f3f1ec;
   padding: 10px 16px; font-size: .64rem; font-weight: 600; text-transform: uppercase; letter-spacing: .12em; }
 .rt.main b { white-space: nowrap; font-size: clamp(2.4rem, 12vw, 4.6rem); }
+.tstat { font-size: .66rem; color: var(--faint); letter-spacing: .04em; margin: 6px 0 0; }

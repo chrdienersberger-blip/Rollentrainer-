@@ -74,3 +74,11 @@ export function cmdSimulation(gradePct, { windMs = 0, crr = 0.004, cw = 0.51 } =
   b.setUint8(6, Math.round(cw * 100));
   return new Uint8Array(b.buffer);
 }
+
+// Antwort am Control Point: 0x80, Befehl, Ergebnis
+export const CP_RESULT = { 1: 'bestätigt', 2: 'nicht unterstützt', 3: 'ungültiger Wert', 4: 'fehlgeschlagen', 5: 'keine Steuerung erlaubt' };
+export const CP_NAME = { 0x00: 'Steuerung anfordern', 0x01: 'Zurücksetzen', 0x05: 'ERG', 0x07: 'Start', 0x11: 'Steigung' };
+export function parseControlResponse(dv) {
+  if (dv.byteLength < 3 || dv.getUint8(0) !== 0x80) return null;
+  return { op: dv.getUint8(1), result: dv.getUint8(2) };
+}

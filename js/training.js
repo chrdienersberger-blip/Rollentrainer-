@@ -1,8 +1,8 @@
 // Trainingsbereich: Trainer verbinden, Workouts (ERG) und Strecken (Steigungssimulation) fahren.
 
-import { Trainer, bluetoothAvailable } from './trainer.js?v=21';
-import { WORKOUTS, ROUTES, workoutDuration, routeLength, routeClimb, routeFromTrack, targetAt, gradeAt, elevationAt, stepSpeed, summarize, toTcx, PLAN, planItem, prepFor, trainerGrade, ergTarget, isPedaling,
-  POWER_ZONES, HR_ZONES, powerZone, hrZone, expectedHrZone, cadenceRange, powerRange, judge } from './workouts.js?v=21';
+import { Trainer, bluetoothAvailable } from './trainer.js?v=22';
+import { WORKOUTS, ROUTES, workoutDuration, routeLength, routeClimb, routeFromTrack, targetAt, gradeAt, elevationAt, stepSpeed, summarize, toTcx, PLAN, planItem, prepFor, trainerGrade, ergNext, isPedaling,
+  POWER_ZONES, HR_ZONES, powerZone, hrZone, expectedHrZone, cadenceRange, powerRange, judge } from './workouts.js?v=22';
 
 const PREFS_KEY = 'rollentrainer.training.v1', RIDES_KEY = 'rollentrainer.rides.v1', ROUTES_KEY = 'rollentrainer.routes.v1';
 const SVGNS = 'http://www.w3.org/2000/svg';
@@ -487,11 +487,11 @@ export function initTraining(root) {
     const extras = [];
     if (kind === 'route') {
       // echte 3D-Welt, wo das Gerät WebGL kann; sonst die einfache gezeichnete Ansicht
-      const w3 = await import('./world3d.js?v=21').catch(() => null);
+      const w3 = await import('./world3d.js?v=22').catch(() => null);
       if (w3?.webglAvailable()) {
         try { world = w3.createWorld3D(def); } catch (err) { console.error(err); world = null; }
       }
-      if (!world) world = (await import('./world.js?v=21')).createWorld(def);
+      if (!world) world = (await import('./world.js?v=22')).createWorld(def);
       ride.world = world;
       extras.push(world.el);
     }
@@ -542,7 +542,8 @@ export function initTraining(root) {
     btn('Beenden', 'primary', () => finishRide());
     const warn = el('p', 'alert');
     warn.hidden = true;
-    root.replaceChildren(top, ...extras, tiles, gauges, chart, ctl, ...(biasLabel ? [biasLabel] : []), warn);
+    const tstat = el('p', 'tstat');
+    root.replaceChildren(top, ...extras, tiles, gauges, chart, ctl, ...(biasLabel ? [biasLabel] : []), warn, tstat);
 
     liveHook = () => {
       if (!ride) return;
@@ -553,6 +554,8 @@ export function initTraining(root) {
       vSpeed.textContent = de(ride.v * 3.6, 1);
       vDist.textContent = de(ride.dist / 1000, 2);
       warn.hidden = trainer.connected;
+      tstat.textContent = trainer.statusText();
+      if (trainer.ergUnsupported && kind === 'workout') { warn.hidden = false; warn.textContent = 'Dein Trainer nimmt keine Zielleistung (ERG) über Bluetooth an. Workouts laufen dann ohne automatische Steuerung – stell den Widerstand von Hand ein.'; }
       warn.textContent = 'Die Verbindung zum Trainer ist abgebrochen. Die Fahrt läuft weiter – du kannst sie beenden und speichern.';
       if (kind === 'workout') {
         const total = workoutDuration(def), tg = targetAt(def, ride.t, ftp());
@@ -585,11 +588,13 @@ export function initTraining(root) {
         const tg = targetAt(def, ride.t, ftp());
         if (!tg) return finishRide();
         target = Math.round(tg.watts * ride.bias);
-        // ERG erst, wenn getreten wird – aus dem Stand fühlt sich ERG sonst wie eine Wand an
-        if (isPedaling(d)) {
+        // ERG erst, wenn getreten wird – aus dem Stand fühlt sich ERG sonst wie eine Wand an.
+        // Abgeschaltet wird erst nach 4 Sekunden ohne Treten, nicht bei einem kurzen Einbruch der Trittfrequenz.
+        ride.idle = isPedaling(d) ? 0 : (ride.idle ?? 0) + 1;
+        if (ride.idle === 0 || (ride.erg && ride.idle < 4)) {
           ride.ergT = (ride.ergT ?? -1) + 1;
-          const cmd = ergTarget(target, ride.ergT);
-          if (cmd !== ride.lastCmd) { trainer.setTargetPower(cmd); ride.lastCmd = cmd; ride.erg = true; }
+          const cmd = ergNext(ride.erg ? ride.lastCmd : null, target, ride.ergT);
+          if (cmd !== ride.lastCmd || !ride.erg) { trainer.setTargetPower(cmd); ride.lastCmd = cmd; ride.erg = true; }
         } else if (ride.erg || ride.lastCmd === null) {
           trainer.setGrade(0); ride.erg = false; ride.lastCmd = 0; ride.ergT = -1;
         }
@@ -723,7 +728,7 @@ export function initTraining(root) {
       const fitBtn = el('button', 'primary', 'Fahrt exportieren (FIT)');
       fitBtn.type = 'button';
       fitBtn.onclick = async () => {
-        const { toFit } = await import('./fit.js?v=21');
+        const { toFit } = await import('./fit.js?v=22');
         deliver(new File([toFit(r.date, r.samples)], `ridemore-${stamp}.fit`, { type: 'application/octet-stream' }));
       };
       const tcxBtn = el('button', 'textbtn', 'Stattdessen als TCX-Datei');

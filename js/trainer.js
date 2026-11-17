@@ -2,7 +2,7 @@
 // Zwei Wege zum Funkchip: im Browser Web Bluetooth, in der iPhone-App die eingebaute
 // Bluetooth-Technik des Geräts (siehe app/native-ble.js). Beide bieten dieselben fünf Funktionen.
 
-import { UUID, parseIndoorBikeData, parseCyclingPower, parseHeartRate, cmdRequestControl, cmdStart, cmdTargetPower, cmdSimulation } from './ftms.js?v=21';
+import { UUID, parseIndoorBikeData, parseCyclingPower, parseHeartRate, cmdRequestControl, cmdStart, cmdTargetPower, cmdSimulation, parseControlResponse, CP_RESULT, CP_NAME } from './ftms.js?v=22';
 
 const isNativeApp = () => !!globalThis.Capacitor?.isNativePlatform?.();
 export const bluetoothAvailable = () => isNativeApp() || !!globalThis.navigator?.bluetooth;
@@ -87,7 +87,7 @@ export class Trainer {
       await ble.listen(h, UUID.ftms, UUID.indoorBikeData, (dv) => this.push(parseIndoorBikeData(dv)));
       ok = true;
       try {
-        await ble.listen(h, UUID.ftms, UUID.controlPoint, () => {});   // Antworten des Trainers müssen abonniert sein
+        await ble.listen(h, UUID.ftms, UUID.controlPoint, (dv) => this.onControlResponse(dv));   // Antworten des Trainers
         this.cp = true;
         await this.write(cmdRequestControl());
         await this.write(cmdStart());
@@ -125,10 +125,33 @@ export class Trainer {
     this.onChange();
   }
 
+  /** Antwort des Trainers auf einen Befehl. Bei „keine Steuerung erlaubt“ wird die Steuerung neu angefordert. */
+  onControlResponse(dv) {
+    const r = parseControlResponse(dv);
+    if (!r) return;
+    this.ack = { ...r, at: Date.now(), text: `${CP_NAME[r.op] ?? `Befehl ${r.op}`}: ${CP_RESULT[r.result] ?? `Antwort ${r.result}`}` };
+    if (r.op === 0x05 && r.result === 2) this.ergUnsupported = true;
+    if (r.result === 5 && r.op !== 0x00 && !this.regaining && this.lastCommand) {
+      this.regaining = true;
+      const again = this.lastCommand;
+      this.write(cmdRequestControl()).then(() => this.write(cmdStart())).then(() => this.write(again)).finally(() => { this.regaining = false; });
+    }
+    this.onChange(true);
+  }
+
+  /** Was zuletzt an den Trainer ging und was er geantwortet hat – für die Anzeige in der Fahrt. */
+  statusText() {
+    if (this.kind !== 'ble') return this.kind === 'demo' ? 'Demo-Trainer' : '';
+    if (!this.controllable) return 'Trainer liefert nur Messwerte – keine Steuerung';
+    const sent = this.lastLabel ?? '–', ack = this.ack && Date.now() - this.ack.at < 8000 ? this.ack.text : 'noch keine Antwort';
+    return `Gesendet: ${sent} · Trainer: ${ack}${this.lastWriteError ? ` · Fehler: ${this.lastWriteError}` : ''}`;
+  }
+
   /** Schreibbefehle nacheinander senden – Bluetooth verträgt keine parallelen Schreibzugriffe. */
   write(bytes) {
     if (!this.cp || !this.handle) return Promise.resolve();
     const { ble, handle } = this;
+    if (bytes[0] === 0x05 || bytes[0] === 0x11) this.lastCommand = bytes;
     this.lastWriteError = null;
     this.queue = this.queue
       .then(() => ble.send(handle, UUID.ftms, UUID.controlPoint, bytes))
@@ -157,10 +180,12 @@ export class Trainer {
   // ---------- Steuerung ----------
   setTargetPower(watts) {
     this.target = watts;
+    this.lastLabel = `ERG ${Math.round(watts)} W`;
     if (this.kind === 'ble') this.write(cmdTargetPower(watts));
   }
   setGrade(gradePct) {
     this.target = null;
+    this.lastLabel = `Steigung ${gradePct.toLocaleString('de-DE')} %`;
     this.grade = gradePct;
     if (this.kind === 'ble') this.write(cmdSimulation(gradePct));
   }

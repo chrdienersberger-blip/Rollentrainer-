@@ -4,9 +4,9 @@
 // Anstiegen – aus nachgebildeten Kurven und Kehren. Die Landschaft drumherum ist erzeugt, nicht vermessen.
 
 import * as THREE from './vendor/three.module.min.js';
-import { routeLength, elevationAt } from './workouts.js?v=21';
-import { courseCurvature, THEME_OF } from './world.js?v=21';
-import { riderPose } from './demo.js?v=21';
+import { routeLength, elevationAt } from './workouts.js?v=22';
+import { courseCurvature, THEME_OF } from './world.js?v=22';
+import { riderPose } from './demo.js?v=22';
 
 const STEP = 5;            // Abstand der Straßenpunkte in Metern
 const EX = 1.15;           // Höhen leicht überhöht

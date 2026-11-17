@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { parseIndoorBikeData, parseCyclingPower, parseHeartRate, cmdTargetPower, cmdSimulation } from '../js/ftms.js';
-import { WORKOUTS, ROUTES, workoutDuration, targetAt, gradeAt, elevationAt, routeLength, routeClimb, stepSpeed, summarize, toTcx, PLAN, planItem, prepFor, powerZone, hrZone, expectedHrZone, cadenceRange, powerRange, judge, routeFromTrack, trainerGrade, ergTarget, isPedaling } from '../js/workouts.js';
+import { WORKOUTS, ROUTES, workoutDuration, targetAt, gradeAt, elevationAt, routeLength, routeClimb, stepSpeed, summarize, toTcx, PLAN, planItem, prepFor, powerZone, hrZone, expectedHrZone, cadenceRange, powerRange, judge, routeFromTrack, trainerGrade, ergTarget, ergNext, isPedaling } from '../js/workouts.js';
 
 const dv = (bytes) => new DataView(Uint8Array.from(bytes).buffer);
 
@@ -298,4 +298,41 @@ test('Widerstand: abgeschwächt, sanft eingeblendet, ohne Treten leicht', () => 
   assert.equal(isPedaling({ cadence: 0, power: 0 }), false);
   assert.equal(isPedaling({ cadence: 85 }), true);
   assert.equal(isPedaling({ power: 150 }), true);
+  assert.equal(isPedaling({ cadence: 0, power: 12, speedKmh: 18 }), true);     // Kickr Core ohne Trittfrequenz, lockeres Einrollen
+  // ERG: Intervallsprung von 120 auf 236 W wird über einige Sekunden verteilt, nach unten sofort
+  assert.equal(ergNext(null, 200, 0), 120);
+  assert.equal(ergNext(120, 236, 30), 148);
+  let w = 120; for (let i = 0; i < 6; i++) w = ergNext(w, 236, 30);
+  assert.equal(w, 236);
+  assert.equal(ergNext(236, 100, 30), 100);
+});
+
+test('Trainer: Antworten auswerten, Steuerung bei Ablehnung neu anfordern', async () => {
+  const { Trainer } = await import('../js/trainer.js');
+  const sent = [], listeners = new Map();
+  let refuseOnce = true;
+  const fake = {
+    pick: async () => ({ name: 'KICKR CORE' }),
+    open: async () => {},
+    listen: async (h, service, characteristic, cb) => { listeners.set(characteristic, cb); },
+    send: async (h, service, characteristic, bytes) => {
+      sent.push(bytes[0]);
+      // Trainer antwortet; die erste ERG-Vorgabe lehnt er ab („keine Steuerung erlaubt“)
+      const result = bytes[0] === 0x05 && refuseOnce ? 5 : 1;
+      if (bytes[0] === 0x05 && refuseOnce) refuseOnce = false;
+      setTimeout(() => listeners.get(0x2ad9)(new DataView(Uint8Array.from([0x80, bytes[0], result]).buffer)), 0);
+    },
+    close: () => {},
+  };
+  const t = new Trainer(() => {}, fake);
+  await t.connectBluetooth();
+  t.setTargetPower(180);
+  await t.queue;
+  await new Promise((r) => setTimeout(r, 20));
+  await t.queue;
+  await new Promise((r) => setTimeout(r, 20));
+  // abgelehnt → Steuerung anfordern, Start, ERG noch einmal
+  assert.deepEqual(sent, [0x00, 0x07, 0x05, 0x00, 0x07, 0x05]);
+  assert.match(t.statusText(), /ERG 180 W/);
+  assert.match(t.statusText(), /bestätigt/);
 });
